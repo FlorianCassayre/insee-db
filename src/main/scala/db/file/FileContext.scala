@@ -48,7 +48,7 @@ class FileContext(file: RandomAccessFile, val start: Int = 0) {
 
   def writeString(i: Int, str: String): FileContext = {
     val bytes = str.getBytes
-    (bytes :+ 0).zipWithIndex.foreach { case (b, i) =>
+    (bytes :+ 0.toByte).zipWithIndex.foreach { case (b, i) =>
       writeByte(i, b)
     }
     reindex(bytes.size + 1)
