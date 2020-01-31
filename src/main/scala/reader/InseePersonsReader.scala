@@ -1,17 +1,18 @@
-package util
+package reader
 
 import java.io.{BufferedReader, File, FileInputStream, InputStreamReader}
 import java.text.SimpleDateFormat
-import java.util.{Calendar, Date}
 import java.util.zip.GZIPInputStream
+import java.util.{Calendar, Date}
 
 import data.Person
 import org.apache.commons.csv.CSVFormat
 
-import scala.jdk.CollectionConverters._
 import scala.util.Try
 
-object InseeReader {
+import scala.jdk.CollectionConverters._
+
+object InseePersonsReader {
 
   private val calendar = Calendar.getInstance()
 
@@ -64,6 +65,5 @@ object InseeReader {
     val isReasonableDeath = person.deathDate.map(getYear).forall(y => y <= YearDeathMax)
     isReasonableRange && isReasonableBirth && isReasonableDeath && isReasonableName(person.nom) && isReasonableName(person.prenom)
   }
-
 
 }

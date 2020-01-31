@@ -59,4 +59,8 @@ class FileContext(file: RandomAccessFile, val start: Int = 0) {
   def reindexAbsolute(i: Int): FileContext = new FileContext(file, i)
 
 
+  def close(): Unit = {
+    file.close()
+  }
+
 }
