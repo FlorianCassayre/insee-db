@@ -197,20 +197,20 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
       upTraversal(id, idPlaceMap(id), Seq.empty)
     }
 
-    placesData.write(placesDataFile, idPlaceMap) // Write place data
+    placesData.write(placesDataFile, idPlaceMap.toIndexedSeq) // Write place data
 
 
     val iterator = InseePersonsReader.readCompiledFile(relativePath(inseeFilename)).filter(InseePersonsReader.isReasonable)
       .take(100000) // TODO temporary
 
     val (nomsSet, prenomsSet) = (mutable.HashSet.empty[String], mutable.HashSet.empty[String])
-    val personsDataMap = mutable.Map.empty[Int, PersonData]
+    val personsDataSeq = mutable.ArrayBuffer.empty[PersonData]
     var count = 0
     iterator.foreach { p =>
       val id = count
       nomsSet.addAll(cleanSplit(p.nom))
       prenomsSet.addAll(cleanSplit(p.prenom))
-      personsDataMap.put(id, PersonData(p.nom, p.prenom, p.gender, p.birthDate, inseeCodePlaceMap.getOrElse(p.birthCode, 0), p.deathDate, inseeCodePlaceMap.getOrElse(p.deathCode, 0)))
+      personsDataSeq.addOne(PersonData(p.nom, p.prenom, p.gender, p.birthDate, inseeCodePlaceMap.getOrElse(p.birthCode, 0), p.deathDate, inseeCodePlaceMap.getOrElse(p.deathCode, 0)))
 
       count += 1
     }
@@ -218,11 +218,11 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     val (nomsSorted, prenomsSorted) = (nomsSet.toSeq.sorted, prenomsSet.toSeq.sorted)
     val (nomsMap, prenomsMap) = (nomsSorted.zipWithIndex.toMap, prenomsSorted.zipWithIndex.toMap)
 
-    genericNameIndex.write(surnamesIndexFile, nomsSorted.zipWithIndex.map(_.swap).toMap)
-    genericNameIndex.write(namesIndexFile, prenomsSorted.zipWithIndex.map(_.swap).toMap)
-    personsData.write(personsDataFile, personsDataMap)
+    genericNameIndex.write(surnamesIndexFile, nomsSorted.zipWithIndex.map(_.swap))
+    genericNameIndex.write(namesIndexFile, prenomsSorted.zipWithIndex.map(_.swap))
+    personsData.write(personsDataFile, personsDataSeq.zipWithIndex.map(_.swap))
 
-    val searchValues = personsDataMap.view.mapValues(p => PersonProcessed(cleanSplit(p.nom).map(nomsMap), cleanSplit(p.prenom).map(prenomsMap), p.gender, p.birthDate, placeAbsolute(p.birthPlaceId), p.deathDate, placeAbsolute(p.deathPlaceId))).toMap
+    val searchValues = personsDataSeq.map(p => PersonProcessed(cleanSplit(p.nom).map(nomsMap), cleanSplit(p.prenom).map(prenomsMap), p.gender, p.birthDate, placeAbsolute(p.birthPlaceId), p.deathDate, placeAbsolute(p.deathPlaceId))).zipWithIndex.map(_.swap)
 
     searchIndex.write(searchIndexFile, searchValues)
 

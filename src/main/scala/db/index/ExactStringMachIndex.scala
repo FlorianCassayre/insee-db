@@ -34,7 +34,7 @@ abstract class ExactStringMachIndex[Q, P] extends LevelIndex[Q, P, Option[Int], 
     }
   }
 
-  override def write(context: FileContext, data: Map[Int, P]): FileContext = {
+  override def write(context: FileContext, data: Seq[(Int, P)]): FileContext = {
 
     class Trie(val children: mutable.HashMap[Byte, Trie] = mutable.HashMap.empty, var value: Option[Int] = None) {
       def insert(key: Seq[Byte], v: Int): Unit = {

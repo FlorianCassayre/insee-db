@@ -1,10 +1,10 @@
 package db.result
 
-import db.{LevelResult, ResultSet}
 import db.file.FileContext
 import db.util.DatabaseUtils._
+import db.{LevelResult, ResultSet}
 
-import collection.Map
+import scala.collection.Seq
 
 class ReferenceResult[Q, P] extends LevelResult[Q, P, ResultSet[Int]] {
 
@@ -19,8 +19,8 @@ class ReferenceResult[Q, P] extends LevelResult[Q, P, ResultSet[Int]] {
 
   override private[db] def empty: ResultSet[Int] = ResultSet(Seq.empty, 0)
 
-  override def write(context: FileContext, data: Map[Int, P]): FileContext = {
-    val sorted = data.keys.toSeq.sorted // TODO not necessary to sort here but could be used for something else
+  override def write(context: FileContext, data: Seq[(Int, P)]): FileContext = {
+    val sorted = data.map(_._1).sorted // TODO not necessary to sort here but could be used for something else
     val count = sorted.size
     context.writeInt(0, count)
     sorted.zipWithIndex.foreach { case (v, i) =>
