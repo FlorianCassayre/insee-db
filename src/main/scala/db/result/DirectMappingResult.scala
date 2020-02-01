@@ -5,6 +5,8 @@ import db.{LevelResult, ResultSet}
 
 import db.util.DatabaseUtils._
 
+import collection._
+
 abstract class DirectMappingResult[Q] extends LevelResult[Q, ResultSet[Q]] {
 
   override private[db] def readResult(context: FileContext, offset: Int, limit: Int): ResultSet[Q] = {

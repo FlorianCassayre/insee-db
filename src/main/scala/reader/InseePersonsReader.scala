@@ -5,7 +5,7 @@ import java.text.SimpleDateFormat
 import java.util.zip.GZIPInputStream
 import java.util.{Calendar, Date}
 
-import data.Person
+import data.PersonRaw
 import org.apache.commons.csv.CSVFormat
 
 import scala.util.Try
@@ -16,7 +16,7 @@ object InseePersonsReader {
 
   private val calendar = Calendar.getInstance()
 
-  def readCompiledFile(file: File): Iterable[Person] = {
+  def readCompiledFile(file: File): Iterable[PersonRaw] = {
 
     val buffered = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(file)), "UTF-8"))
 
@@ -33,7 +33,7 @@ object InseePersonsReader {
 
     // `view` is required to preserve the iterator
     iterator.asScala.view.map { r =>
-      Person(r.get(0), r.get(1), parseGender(r.get(2)), parseDate(r.get(3)), r.get(4), parseDate(r.get(7)), r.get(8))
+      PersonRaw(r.get(0), r.get(1), parseGender(r.get(2)), parseDate(r.get(3)), r.get(4), parseDate(r.get(7)), r.get(8))
     }
   }
 
@@ -43,7 +43,7 @@ object InseePersonsReader {
    * @param person the person to inspect
    * @return `false` if the entry is considered to be an outlier
    */
-  def isReasonable(person: Person): Boolean = {
+  def isReasonable(person: PersonRaw): Boolean = {
     val AgeMax = 125
     val YearBirthMin = 1850
     val YearBirthMax = 2019

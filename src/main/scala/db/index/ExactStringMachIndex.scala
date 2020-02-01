@@ -5,7 +5,7 @@ import db.file.FileContext
 import db.util.DatabaseUtils._
 
 import scala.annotation.tailrec
-import scala.collection.{+:, Seq, mutable}
+import scala.collection.{+:, Seq, mutable, Map}
 
 abstract class ExactStringMachIndex[Q] extends LevelIndex[Q, Option[Int], Seq[Byte]] {
 

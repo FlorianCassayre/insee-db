@@ -7,6 +7,8 @@ object DatabaseUtils {
   val IntSize: Int = Integer.BYTES
   val ByteSize: Int = java.lang.Byte.BYTES
 
+  val PointerSize: Int = IntSize // TODO add one byte
+
 
   def binarySearch(reader: Int => Int, begin: Int, len: Int, step: Int, needle: Int): Option[Int] = {
     var start = 0

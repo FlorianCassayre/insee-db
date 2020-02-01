@@ -2,6 +2,7 @@ package db
 
 import db.file.FileContext
 
+import collection._
 
 abstract class DatabaseLevel[Q, R] {
 

@@ -4,6 +4,8 @@ import db.{LevelResult, ResultSet}
 import db.file.FileContext
 import db.util.DatabaseUtils._
 
+import collection.Map
+
 class ReferenceResult[Q] extends LevelResult[Q, ResultSet[Int]] {
 
   override private[db] def readResult(context: FileContext, offset: Int, limit: Int): ResultSet[Int] = {

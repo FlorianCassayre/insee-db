@@ -6,15 +6,17 @@ import db.util.DatabaseUtils.{IntSize, binarySearch}
 
 import scala.annotation.tailrec
 
+import collection.{Seq, Map}
+
 abstract class AbstractFullTrieIndex[Q, R, T] extends LevelIndexParent[Q, R, T] {
 
   def canonicalize(t: T): Seq[Int]
 
   def reorder(t: T): Seq[Seq[Int]]
 
-  override def query(context: FileContext, offset: Int, limit: Int, values: Q): R = {
-    val canonical = canonicalize(getParameter(values))
-    queryInternal(context, offset, limit, canonical, values)
+  override def query(context: FileContext, offset: Int, limit: Int, parameters: Q): R = {
+    val canonical = canonicalize(getParameter(parameters))
+    queryInternal(context, offset, limit, canonical, parameters)
   }
 
   @tailrec
