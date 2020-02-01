@@ -2,7 +2,7 @@ package db
 
 import db.file.FileContext
 
-abstract class LevelResult[Q, R] extends DatabaseLevel[Q, R] {
+abstract class LevelResult[Q, P, R] extends DatabaseLevel[Q, P, R] {
 
   private[db] def readResult(context: FileContext, offset: Int, limit: Int): R
 

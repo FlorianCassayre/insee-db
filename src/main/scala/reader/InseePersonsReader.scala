@@ -33,7 +33,7 @@ object InseePersonsReader {
 
     // `view` is required to preserve the iterator
     iterator.asScala.view.map { r =>
-      PersonRaw(r.get(0), r.get(1), parseGender(r.get(2)), parseDate(r.get(3)), r.get(4), parseDate(r.get(7)), r.get(8))
+      PersonRaw(ReaderUtils.capitalizeFirstPerWord(r.get(0)), ReaderUtils.capitalizeFirstPerWord(r.get(1)), parseGender(r.get(2)), parseDate(r.get(3)), r.get(4), parseDate(r.get(7)), r.get(8))
     }
   }
 

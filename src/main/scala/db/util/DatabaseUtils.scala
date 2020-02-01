@@ -4,7 +4,8 @@ import db.file.FileContext
 
 object DatabaseUtils {
 
-  val IntSize: Int = Integer.BYTES
+  val LongSize: Int = java.lang.Long.BYTES
+  val IntSize: Int = java.lang.Integer.BYTES
   val ByteSize: Int = java.lang.Byte.BYTES
 
   val PointerSize: Int = IntSize // TODO add one byte

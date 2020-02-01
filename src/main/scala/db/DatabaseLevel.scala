@@ -4,7 +4,7 @@ import db.file.FileContext
 
 import collection._
 
-abstract class DatabaseLevel[Q, R] {
+abstract class DatabaseLevel[Q, P, R] {
 
   def query(context: FileContext, offset: Int, limit: Int, parameters: Q): R
 
@@ -12,6 +12,6 @@ abstract class DatabaseLevel[Q, R] {
 
   private[db] def empty: R
 
-  def write(context: FileContext, data: Map[Int, Q]): FileContext
+  def write(context: FileContext, data: Map[Int, P]): FileContext
 
 }

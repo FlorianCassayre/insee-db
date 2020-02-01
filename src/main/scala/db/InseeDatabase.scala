@@ -5,12 +5,12 @@ import java.util.Date
 
 import data._
 import db.file.FileContext
-import db.index.{ExactStringMachIndex, ExclusiveSubsetIndex}
+import db.index.{ExactStringMachIndex, ExclusiveSubsetIndex, PrefixIndex}
 import db.result.{DirectPersonResult, DirectPlaceResult, ReferenceResult}
 import reader.{InseePersonsReader, InseePlacesReader}
 
 import scala.annotation.tailrec
-import scala.collection.Seq
+import scala.collection.{Seq, Set}
 
 class InseeDatabase(root: File, readonly: Boolean = true) {
 
@@ -46,17 +46,24 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   private val placesData = new DirectPlaceResult()
 
-  private val genericNameIndex = new ExactStringMachIndex[String] {
-    def getParameter(q: String): scala.collection.Seq[Byte] = q.getBytes
+  private val genericNameIndex = new ExactStringMachIndex[String, String] {
+    override def getQueryParameter(q: String): Seq[Byte] = q.getBytes
+    override def getWriteParameter(q: String): Seq[Byte] = getQueryParameter(q)
   }
 
-  private val searchIndex = new ExclusiveSubsetIndex[PersonQuery, ResultSet[Int]] {
-    override def getParameter(q: PersonQuery): Set[Int] = q.nomsIds.toSet
-    override val child: DatabaseLevel[PersonQuery, ResultSet[Int]] =
-      new ExclusiveSubsetIndex[PersonQuery, ResultSet[Int]] {
-        override def getParameter(q: PersonQuery): Set[Int] = q.prenomsIds.toSet
-        override val child: DatabaseLevel[PersonQuery, ResultSet[Int]] = new ReferenceResult()
-        // TODO complete this
+  private val searchIndex: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] {
+    override def getQueryParameter(q: PersonQuery): Set[Int] = q.nomsIds.toSet
+    override def getWriteParameter(q: PersonProcessed): Set[Int] = q.noms.toSet
+    override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] =
+      new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] {
+        override def getQueryParameter(q: PersonQuery): Set[Int] = q.prenomsIds.toSet
+        override def getWriteParameter(q: PersonProcessed): Set[Int] = q.prenoms.toSet
+        override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new PrefixIndex[PersonQuery, PersonProcessed, ResultSet[Int]] {
+          override def getQueryParameter(q: PersonQuery): Seq[Seq[Int]] = Seq(q.placeIds)
+          override def getWriteParameter(q: PersonProcessed): Seq[Seq[Int]] = Seq(q.birthPlaceIds, q.deathPlaceIds).toSet.toSeq
+          override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new ReferenceResult()
+          // TODO complete this
+        }
       }
   }
 
@@ -73,7 +80,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   private def idToPerson(id: Int): Option[PersonData] = personsData.query(personsDataFile, id, 1, null).entries.headOption
 
-  private def idToPersonDisplay(id: Int): Option[PersonDisplay] = {
+  def idToPersonDisplay(id: Int): Option[PersonDisplay] = {
     idToPerson(id).map { p =>
       PersonDisplay(p.nom, p.prenom, p.gender, p.birthDate, idToPlaceDisplay(p.birthPlaceId), p.deathDate, idToPlaceDisplay(p.deathPlaceId))
     }
@@ -101,7 +108,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
   private def idToAbsolutePlace(id: Int): Option[Seq[Int]] = idToPlaces(id).map(_.map(_._1))
 
   private def idToPlaceDisplay(id: Int): Option[String] = { // TODO change signature
-    idToPlaces(id).map(_.map(_._2.name)).map{ places =>
+    idToPlaces(id).map(_.map(_._2.name).tail.reverse).map{ places =>
       def join(seq: Seq[String]): String = seq.mkString(", ")
       if(places.size >= 5) {
         val (prefix, suffix) = places.splitAt(places.size - 4)
@@ -116,7 +123,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   // TODO missing methods
 
-  def queryPersons(limit: Int, offset: Int,
+  def queryPersons(offset: Int, limit: Int,
                    surname: Option[String] = None,
                    name: Option[String] = None,
                    placeId: Option[Int] = None,
@@ -178,31 +185,48 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     val (idPlaceMap, inseeCodePlaceMap) = processPlaceTree(placeTree, None)
 
+    def placeAbsolute(id: Int): Seq[Int] = {
+      @tailrec
+      def upTraversal(id: Int, place: PlaceData, acc: Seq[Int]): Seq[Int] = {
+        val newAcc = id +: acc
+        place.parent match {
+          case Some(parentId) => upTraversal(parentId, idPlaceMap(parentId), newAcc)
+          case None => newAcc
+        }
+      }
+      upTraversal(id, idPlaceMap(id), Seq.empty)
+    }
+
     placesData.write(placesDataFile, idPlaceMap) // Write place data
 
 
     val iterator = InseePersonsReader.readCompiledFile(relativePath(inseeFilename)).filter(InseePersonsReader.isReasonable)
-      .take(10000) // TODO temporary
+      .take(100000) // TODO temporary
 
     val (nomsSet, prenomsSet) = (mutable.HashSet.empty[String], mutable.HashSet.empty[String])
     val personsDataMap = mutable.Map.empty[Int, PersonData]
     var count = 0
     iterator.foreach { p =>
       val id = count
-      nomsSet.add(p.nom)
-      prenomsSet.add(p.prenom)
+      nomsSet.addAll(cleanSplit(p.nom))
+      prenomsSet.addAll(cleanSplit(p.prenom))
       personsDataMap.put(id, PersonData(p.nom, p.prenom, p.gender, p.birthDate, inseeCodePlaceMap.getOrElse(p.birthCode, 0), p.deathDate, inseeCodePlaceMap.getOrElse(p.deathCode, 0)))
 
       count += 1
     }
 
-    val (nomsMap, prenomsMap) = (nomsSet.toSeq.sorted.zipWithIndex.map(_.swap).toMap, prenomsSet.toSeq.sorted.zipWithIndex.map(_.swap).toMap)
+    val (nomsSorted, prenomsSorted) = (nomsSet.toSeq.sorted, prenomsSet.toSeq.sorted)
+    val (nomsMap, prenomsMap) = (nomsSorted.zipWithIndex.toMap, prenomsSorted.zipWithIndex.toMap)
 
-    genericNameIndex.write(surnamesIndexFile, nomsMap)
-    genericNameIndex.write(surnamesIndexFile, prenomsMap)
+    genericNameIndex.write(surnamesIndexFile, nomsSorted.zipWithIndex.map(_.swap).toMap)
+    genericNameIndex.write(namesIndexFile, prenomsSorted.zipWithIndex.map(_.swap).toMap)
     personsData.write(personsDataFile, personsDataMap)
 
-    // TODO write search
+    val searchValues = personsDataMap.view.mapValues(p => PersonProcessed(cleanSplit(p.nom).map(nomsMap), cleanSplit(p.prenom).map(prenomsMap), p.gender, p.birthDate, placeAbsolute(p.birthPlaceId), p.deathDate, placeAbsolute(p.deathPlaceId))).toMap
+
+    searchIndex.write(searchIndexFile, searchValues)
+
+    // TODO: places prefix
 
     ???
   }

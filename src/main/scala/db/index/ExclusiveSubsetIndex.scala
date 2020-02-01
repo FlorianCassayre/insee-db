@@ -2,7 +2,7 @@ package db.index
 
 import collection.{Seq, Set}
 
-abstract class ExclusiveSubsetIndex[Q, R] extends AbstractFullTrieIndex[Q, R, Set[Int]] {
+abstract class ExclusiveSubsetIndex[Q, P, R] extends AbstractFullTrieIndex[Q, P, R, Set[Int]] {
 
   override def canonicalize(set: Set[Int]): Seq[Int] = set.toSeq.sorted
 

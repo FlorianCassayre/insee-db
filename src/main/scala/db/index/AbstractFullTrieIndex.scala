@@ -8,14 +8,14 @@ import scala.annotation.tailrec
 
 import collection.{Seq, Map}
 
-abstract class AbstractFullTrieIndex[Q, R, T] extends LevelIndexParent[Q, R, T] {
+abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, R, T] {
 
   def canonicalize(t: T): Seq[Int]
 
   def reorder(t: T): Seq[Seq[Int]]
 
   override def query(context: FileContext, offset: Int, limit: Int, parameters: Q): R = {
-    val canonical = canonicalize(getParameter(parameters))
+    val canonical = canonicalize(getQueryParameter(parameters))
     queryInternal(context, offset, limit, canonical, parameters)
   }
 
@@ -36,8 +36,8 @@ abstract class AbstractFullTrieIndex[Q, R, T] extends LevelIndexParent[Q, R, T] 
     }
   }
 
-  override def write(context: FileContext, data: Map[Int, Q]): FileContext = {
-    val valuesMap = data.view.mapValues(getParameter).toIndexedSeq
+  override def write(context: FileContext, data: Map[Int, P]): FileContext = {
+    val valuesMap = data.view.mapValues(getWriteParameter).toIndexedSeq
 
     import scala.collection._
 

@@ -8,11 +8,12 @@ import db.util.DatabaseUtils._
 
 class DirectPersonResult extends DirectMappingResult[PersonData] {
 
-  private val DateSize = IntSize // TODO
+  private val DateSize = LongSize // TODO reduce date memory footprint (can be represented in <8 bytes)
 
   override def readResultEntry(context: FileContext): PersonData = {
     def readDateOption(context: FileContext, offset: Int): Option[Date] = {
-      ???
+      val v = context.readLong(offset)
+      if(v != 0) Some(new Date(v)) else None
     }
     var ctx = context
     val noms = {
@@ -36,7 +37,7 @@ class DirectPersonResult extends DirectMappingResult[PersonData] {
 
   override def writeResultEntry(context: FileContext, entry: PersonData): FileContext = {
     def writeDateOption(context: FileContext, offset: Int, dateOpt: Option[Date]): Unit = {
-      ???
+      context.writeLong(offset, dateOpt.map(_.getTime).getOrElse(0))
     }
     def writeIntOption(context: FileContext, offset: Int, option: Option[Int]): Unit = context.writeInt(offset, option.getOrElse(-1))
     var ctx = context

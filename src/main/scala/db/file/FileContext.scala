@@ -14,6 +14,11 @@ class FileContext(file: RandomAccessFile, val start: Int = 0) {
     file.seek(start + i)
   }
 
+  def readLong(i: Int): Long = {
+    seek(i)
+    file.readLong()
+  }
+
   def readInt(i: Int): Int = {
     seek(i)
     file.readInt()
@@ -34,6 +39,12 @@ class FileContext(file: RandomAccessFile, val start: Int = 0) {
       b = readByte(i)
     }
     (new String(chars.toArray), reindex(i + ByteSize))
+  }
+
+
+  def writeLong(i: Int, v: Long): Unit = {
+    seek(i)
+    file.writeLong(v)
   }
 
   def writeInt(i: Int, v: Int): Unit = {

@@ -7,13 +7,13 @@ import db.util.DatabaseUtils._
 import scala.annotation.tailrec
 import scala.collection.{+:, Seq, mutable, Map}
 
-abstract class ExactStringMachIndex[Q] extends LevelIndex[Q, Option[Int], Seq[Byte]] {
+abstract class ExactStringMachIndex[Q, P] extends LevelIndex[Q, P, Option[Int], Seq[Byte]] {
 
   private val MaskFlag = 0x80
   private val MaskCount = ~MaskFlag & 0xff
 
   override def query(context: FileContext, offset: Int, limit: Int, parameters: Q): Option[Int] =
-    queryInternal(context, offset, limit, getParameter(parameters))
+    queryInternal(context, offset, limit, getQueryParameter(parameters))
 
   @tailrec
   private def queryInternal(context: FileContext, offset: Int, limit: Int, parameter: Seq[Byte]): Option[Int] = {
@@ -34,7 +34,7 @@ abstract class ExactStringMachIndex[Q] extends LevelIndex[Q, Option[Int], Seq[By
     }
   }
 
-  override def write(context: FileContext, data: Map[Int, Q]): FileContext = {
+  override def write(context: FileContext, data: Map[Int, P]): FileContext = {
 
     class Trie(val children: mutable.HashMap[Byte, Trie] = mutable.HashMap.empty, var value: Option[Int] = None) {
       def insert(key: Seq[Byte], v: Int): Unit = {
@@ -68,7 +68,7 @@ abstract class ExactStringMachIndex[Q] extends LevelIndex[Q, Option[Int], Seq[By
     val root = new Trie()
 
     data.foreach { case (id, v) =>
-      root.insert(getParameter(v), id)
+      root.insert(getWriteParameter(v), id)
     }
 
     def writeTrie(trie: Trie, context: FileContext): FileContext = {

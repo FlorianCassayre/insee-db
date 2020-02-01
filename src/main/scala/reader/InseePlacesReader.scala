@@ -38,7 +38,7 @@ object InseePlacesReader {
 
   def readCountries(file: File): Seq[PlaceCountry] =
     csvReader(file).map(r =>
-      PlaceCountry(r.get(0), capitalizeFirstPerWord(r.get(5)))
+      PlaceCountry(r.get(0), ReaderUtils.capitalizeFirstPerWord(r.get(5)))
     ).toVector
 
 
@@ -80,6 +80,4 @@ object InseePlacesReader {
     readPlaces(sub("communes.csv"), sub("departements.csv"), sub("regions.csv"), sub("pays.csv"))
   }
 
-  // https://stackoverflow.com/a/48494552/4413709
-  private def capitalizeFirstPerWord(str: String): String = raw"\b((?<!\b')\w+)".r.replaceAllIn(str.toLowerCase, _.group(1).capitalize)
 }

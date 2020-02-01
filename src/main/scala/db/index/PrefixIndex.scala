@@ -1,9 +1,11 @@
 package db.index
 
-abstract class PrefixIndex[Q, R] extends AbstractFullTrieIndex[Q, R, Seq[Int]] {
+import collection.Seq
 
-  override def canonicalize(seq: Seq[Int]): Seq[Int] = seq
+abstract class PrefixIndex[Q, P, R] extends AbstractFullTrieIndex[Q, P, R, Seq[Seq[Int]]] {
 
-  override def reorder(seq: Seq[Int]): Seq[Seq[Int]] = Seq(seq)
+  override def canonicalize(seq: Seq[Seq[Int]]): Seq[Int] = seq match { case Seq(singleton) => singleton }
+
+  override def reorder(seq: Seq[Seq[Int]]): Seq[Seq[Int]] = seq
 
 }

@@ -6,7 +6,7 @@ import db.util.DatabaseUtils._
 
 import collection.Map
 
-class ReferenceResult[Q] extends LevelResult[Q, ResultSet[Int]] {
+class ReferenceResult[Q, P] extends LevelResult[Q, P, ResultSet[Int]] {
 
   override private[db] def readResult(context: FileContext, offset: Int, limit: Int): ResultSet[Int] = {
     val resultSize = context.readInt(0)
@@ -19,7 +19,7 @@ class ReferenceResult[Q] extends LevelResult[Q, ResultSet[Int]] {
 
   override private[db] def empty: ResultSet[Int] = ResultSet(Seq.empty, 0)
 
-  override def write(context: FileContext, data: Map[Int, Q]): FileContext = {
+  override def write(context: FileContext, data: Map[Int, P]): FileContext = {
     val sorted = data.keys.toSeq.sorted // TODO not necessary to sort here but could be used for something else
     val count = sorted.size
     context.writeInt(0, count)
