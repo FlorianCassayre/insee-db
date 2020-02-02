@@ -11,9 +11,8 @@ abstract class DirectMappingResult[Q] extends LevelResult[Q, Q, ResultSet[Q]] {
 
   override private[db] def readResult(context: FileContext, offset: Int, limit: Int): ResultSet[Q] = {
     val count = context.readInt(0)
-    val start = 1 + offset
-    val end = Math.min(start + limit, 1 + count)
-    val pointers = (start until end).map(i => context.readInt(i * IntSize))
+    val end = Math.min(offset + limit, count)
+    val pointers = (offset until end).map(i => context.readPointer(IntSize + i * PointerSize))
     val seq = pointers.map(p => readResultEntry(context.reindexAbsolute(p)))
 
     ResultSet(seq, count)
@@ -27,10 +26,10 @@ abstract class DirectMappingResult[Q] extends LevelResult[Q, Q, ResultSet[Q]] {
     val seq = data.toIndexedSeq.sortBy(_._1)
     val count = seq.size
     context.writeInt(0, count)
-    var start = context.reindex((1 + count) * IntSize)
+    var start = context.reindex(IntSize + count * PointerSize)
     seq.zipWithIndex.foreach { case ((id, v), i) =>
       assert(id == i)
-      context.writeInt((1 + i) * IntSize, start.getOffset)
+      context.writePointer(IntSize + i * PointerSize, start.getOffset)
       start = writeResultEntry(start, v)
     }
     start

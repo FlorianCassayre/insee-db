@@ -1,11 +1,11 @@
 package db.index
 
-import db.{LevelIndex, LevelIndexParent}
+import db.LevelIndex
 import db.file.FileContext
 import db.util.DatabaseUtils._
 
 import scala.annotation.tailrec
-import scala.collection.{+:, Seq, mutable, Map}
+import scala.collection.{+:, Map, Seq, mutable}
 
 abstract class ExactStringMachIndex[Q, P] extends LevelIndex[Q, P, Option[Int], Seq[Byte]] {
 
@@ -23,7 +23,7 @@ abstract class ExactStringMachIndex[Q, P] extends LevelIndex[Q, P, Option[Int], 
     parameter match {
       case head +: tail =>
         val headerOffset = ByteSize + (if(containsValue) IntSize else 0)
-        binarySearch(context.readByte, headerOffset, count, ByteSize + IntSize, head.toInt) match {
+        binarySearch(context.readByte, headerOffset, count, ByteSize + PointerSize, head.toInt) match {
           case Some(value) =>
             val nextPointer = context.readInt(value + ByteSize)
             queryInternal(context.reindexAbsolute(nextPointer), offset, limit, tail)
@@ -80,12 +80,12 @@ abstract class ExactStringMachIndex[Q, P] extends LevelIndex[Q, P, Option[Int], 
         context.writeInt(ByteSize, trie.value.get)
       }
       val headerOffset = ByteSize + (if(flag) IntSize else 0)
-      var start = context.reindex(headerOffset + (ByteSize + IntSize) * count)
+      var start = context.reindex(headerOffset + (ByteSize + PointerSize) * count)
       trie.children.keys.toSeq.sorted.zipWithIndex.foreach { case (k, i) =>
         val child = trie.children(k)
-        val off = headerOffset + (ByteSize + IntSize) * i
+        val off = headerOffset + (ByteSize + PointerSize) * i
         context.writeByte(off, k)
-        context.writeInt(off + ByteSize, start.getOffset)
+        context.writePointer(off + ByteSize, start.getOffset)
         start = writeTrie(child, start)
       }
       start

@@ -8,10 +8,10 @@ object DatabaseUtils {
   val IntSize: Int = java.lang.Integer.BYTES
   val ByteSize: Int = java.lang.Byte.BYTES
 
-  val PointerSize: Int = IntSize // TODO add one byte
+  val PointerSize: Int = IntSize + ByteSize // Address space: 2^40 (~ 1 TB)
 
 
-  def binarySearch(reader: Int => Int, begin: Int, len: Int, step: Int, needle: Int): Option[Int] = {
+  def binarySearch(reader: Long => Long, begin: Long, len: Int, step: Int, needle: Int): Option[Long] = {
     var start = 0
     var end = len - 1
     while(start <= end) {

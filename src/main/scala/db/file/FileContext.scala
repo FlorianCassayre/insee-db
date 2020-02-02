@@ -2,34 +2,42 @@ package db.file
 
 import java.io.RandomAccessFile
 
-import scala.collection._
+import db.util.DatabaseUtils
 
+import scala.collection._
 import db.util.DatabaseUtils._
 
-class FileContext(file: RandomAccessFile, val start: Int = 0) {
+class FileContext(file: RandomAccessFile, val start: Long = 0) {
 
-  def getOffset: Int = start
+  def getOffset: Long = start
 
-  private def seek(i: Int): Unit = {
+  private def seek(i: Long): Unit = {
     file.seek(start + i)
   }
 
-  def readLong(i: Int): Long = {
+  def readLong(i: Long): Long = {
     seek(i)
     file.readLong()
   }
 
-  def readInt(i: Int): Int = {
+  def readInt(i: Long): Int = {
     seek(i)
     file.readInt()
   }
 
-  def readByte(i: Int): Int = {
+  def readByte(i: Long): Int = {
     seek(i)
     file.readByte()
   }
 
-  def readString(i: Int): (String, FileContext) = {
+  def readPointer(i: Long): Long = {
+    seek(i)
+    val high = file.readByte()
+    val low = file.readInt()
+    ((high.toLong & 0xff) << 32) | (low.toLong & 0xffffffff)
+  }
+
+  def readString(i: Long): (String, FileContext) = {
     var chars: Vector[Byte] = Vector.empty
     var i = 0
     var b = readByte(i)
@@ -42,22 +50,29 @@ class FileContext(file: RandomAccessFile, val start: Int = 0) {
   }
 
 
-  def writeLong(i: Int, v: Long): Unit = {
+
+  def writeLong(i: Long, v: Long): Unit = {
     seek(i)
     file.writeLong(v)
   }
 
-  def writeInt(i: Int, v: Int): Unit = {
+  def writeInt(i: Long, v: Int): Unit = {
     seek(i)
     file.writeInt(v)
   }
 
-  def writeByte(i: Int, v: Int): Unit = {
+  def writeByte(i: Long, v: Int): Unit = {
     seek(i)
     file.writeByte(v)
   }
 
-  def writeString(i: Int, str: String): FileContext = {
+  def writePointer(i: Long, v: Long): Unit = {
+    seek(i)
+    file.writeByte((v >> 32).toInt)
+    file.writeInt(v.toInt)
+  }
+
+  def writeString(i: Long, str: String): FileContext = {
     val bytes = str.getBytes
     (bytes :+ 0.toByte).zipWithIndex.foreach { case (b, i) =>
       writeByte(i, b)
@@ -65,9 +80,9 @@ class FileContext(file: RandomAccessFile, val start: Int = 0) {
     reindex(bytes.size + 1)
   }
 
-  def reindex(i: Int): FileContext = reindexAbsolute(start + i)
+  def reindex(i: Long): FileContext = reindexAbsolute(start + i)
 
-  def reindexAbsolute(i: Int): FileContext = new FileContext(file, i)
+  def reindexAbsolute(i: Long): FileContext = new FileContext(file, i)
 
 
   def close(): Unit = {

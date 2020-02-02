@@ -1,6 +1,6 @@
 package db
 
-import java.io.{File, RandomAccessFile}
+import java.io.{BufferedOutputStream, DataOutputStream, File, FileOutputStream, RandomAccessFile}
 import java.util.Date
 
 import data._
@@ -183,10 +183,10 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   private def cleanSplitAndNormalize(str: String): IndexedSeq[String] = cleanSplit(normalizeString(str))
 
-  def generateDatabase(inseeFilename: String, inseePlaceDirectory: String): Unit = {
+  def generateDatabase(inseeFile: File, inseePlaceDirectory: File): Unit = {
     import scala.collection._
 
-    val placeTree = InseePlacesReader.readPlaces(relativePath(inseePlaceDirectory))
+    var placeTree = InseePlacesReader.readPlaces(inseePlaceDirectory)
 
     var idCounter = 0
     def processPlaceTree(node: PlaceTree, parent: Option[Int]): (Map[Int, PlaceData], Map[String, Int]) = {
@@ -200,7 +200,9 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
       }
     }
 
-    val (idPlaceMap, inseeCodePlaceMap) = processPlaceTree(placeTree, None)
+    var (idPlaceMap, inseeCodePlaceMap) = processPlaceTree(placeTree, None)
+
+    placeTree = null
 
     def placeAbsolute(id: Int): Seq[Int] = {
       @tailrec
@@ -216,14 +218,13 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     placesData.write(placesDataFile, idPlaceMap) // Write place data
 
-    // TODO: places prefix
 
-    val iterator = InseePersonsReader.readCompiledFile(relativePath(inseeFilename)).filter(InseePersonsReader.isReasonable)
-      .take(10000) // TODO temporary
+    val iterator = InseePersonsReader.readCompiledFile(inseeFile).filter(InseePersonsReader.isReasonable)
+      .take(1000) // TODO temporary
 
-    val (nomsSet, prenomsSet) = (mutable.HashSet.empty[String], mutable.HashSet.empty[String])
-    val personsDataMap = mutable.Map.empty[Int, PersonData]
-    val placeOccurrences = mutable.Seq.fill(idPlaceMap.size)(0)
+    var (nomsSet, prenomsSet) = (mutable.HashSet.empty[String], mutable.HashSet.empty[String])
+    var personsDataMap = mutable.Map.empty[Int, PersonData]
+    var placeOccurrences = mutable.Seq.fill(idPlaceMap.size)(0)
     var count = 0
     iterator.foreach { p =>
       val id = count
@@ -239,16 +240,33 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
       count += 1
     }
 
+    inseeCodePlaceMap = null
+
     placesIndex.write(placesIndexFile, idPlaceMap.keys.map(id => id -> (normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap))), placeOccurrences(id))).toMap)
 
-    val (nomsSorted, prenomsSorted) = (nomsSet.toSeq.sorted, prenomsSet.toSeq.sorted)
-    val (nomsMap, prenomsMap) = (nomsSorted.zipWithIndex.toMap, prenomsSorted.zipWithIndex.toMap)
+    placeOccurrences = null
+
+    var (nomsSorted, prenomsSorted) = (nomsSet.toSeq.sorted, prenomsSet.toSeq.sorted)
+
+    nomsSet = null
+    prenomsSet = null
+
+    var (nomsMap, prenomsMap) = (nomsSorted.zipWithIndex.toMap, prenomsSorted.zipWithIndex.toMap)
 
     genericNameIndex.write(surnamesIndexFile, nomsSorted.zipWithIndex.map(_.swap).toMap)
     genericNameIndex.write(namesIndexFile, prenomsSorted.zipWithIndex.map(_.swap).toMap)
+
+    nomsSorted = null
+    prenomsSorted = null
+
     personsData.write(personsDataFile, personsDataMap)
 
     val searchValues = personsDataMap.view.mapValues(p => PersonProcessed(cleanSplitAndNormalize(p.nom).map(nomsMap), cleanSplitAndNormalize(p.prenom).map(prenomsMap), p.gender, p.birthDate, placeAbsolute(p.birthPlaceId), p.deathDate, placeAbsolute(p.deathPlaceId))).toMap
+
+    personsDataMap = null
+    nomsMap = null
+    prenomsMap = null
+    idPlaceMap = null
 
     searchIndex.write(searchIndexFile, searchValues)
 
