@@ -7,7 +7,7 @@ import data._
 import db.file.FileContext
 import db.file.writer.DataHandler
 import db.index.{ExactStringMachIndex, ExclusiveSubsetIndex, PointerBasedIndex, PrefixIndex, StringBasedIndex}
-import db.result.{DirectPersonResult, DirectPlaceResult, ReferenceResult}
+import db.result.{DirectPersonResult, DirectPlaceResult, LimitedReferenceResult, ReferenceResult}
 import reader.{InseePersonsReader, InseePlacesReader}
 
 import scala.annotation.tailrec
@@ -68,10 +68,13 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
       }
   }
 
-  private val placesIndex: DatabaseLevel[String, String, ResultSet[Int]] = new PrefixIndex[String, String, ResultSet[Int]] with StringBasedIndex {
+  private val placesIndex: DatabaseLevel[String, (String, Int), ResultSet[Int]] = new PrefixIndex[String, (String, Int), ResultSet[Int]] with StringBasedIndex {
     override def getQueryParameter(q: String): Seq[Seq[Int]] = Seq(q.getBytes.map(_.toInt).toSeq)
-    override def getWriteParameter(q: String): Seq[Seq[Int]] = getQueryParameter(q)
-    override val child = new ReferenceResult()
+    override def getWriteParameter(q: (String, Int)): Seq[Seq[Int]] = getQueryParameter(q._1)
+    override val child: DatabaseLevel[String, (String, Int), ResultSet[Int]] = new LimitedReferenceResult[String, (String, Int)]() {
+      override val MaxResults: Int = 25
+      override def ordering(id: Int, p: (String, Int)): Int = -p._2
+    }
   }
 
   /* Query methods */
@@ -178,7 +181,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   private def normalizeSentence(str: String): String = cleanSplitAndNormalize(str).mkString(" ")
 
-  private def cleanSplitAndNormalize(str: String): IndexedSeq[String] = cleanSplit(str).map(normalizeString)
+  private def cleanSplitAndNormalize(str: String): IndexedSeq[String] = cleanSplit(normalizeString(str))
 
   def generateDatabase(inseeFilename: String, inseePlaceDirectory: String): Unit = {
     import scala.collection._
@@ -213,8 +216,6 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     placesData.write(placesDataFile, idPlaceMap) // Write place data
 
-    placesIndex.write(placesIndexFile, idPlaceMap.keys.map(id => id -> normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap)))).toMap)
-
     // TODO: places prefix
 
     val iterator = InseePersonsReader.readCompiledFile(relativePath(inseeFilename)).filter(InseePersonsReader.isReasonable)
@@ -222,15 +223,23 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     val (nomsSet, prenomsSet) = (mutable.HashSet.empty[String], mutable.HashSet.empty[String])
     val personsDataMap = mutable.Map.empty[Int, PersonData]
+    val placeOccurrences = mutable.Seq.fill(idPlaceMap.size)(0)
     var count = 0
     iterator.foreach { p =>
       val id = count
       nomsSet.addAll(cleanSplitAndNormalize(p.nom))
       prenomsSet.addAll(cleanSplitAndNormalize(p.prenom))
-      personsDataMap.put(id, PersonData(p.nom, p.prenom, p.gender, p.birthDate, inseeCodePlaceMap.getOrElse(p.birthCode, 0), p.deathDate, inseeCodePlaceMap.getOrElse(p.deathCode, 0)))
+      val (birthPlace, deathPlace) = (inseeCodePlaceMap.getOrElse(p.birthCode, 0), inseeCodePlaceMap.getOrElse(p.deathCode, 0))
+      personsDataMap.put(id, PersonData(p.nom, p.prenom, p.gender, p.birthDate, birthPlace, p.deathDate, deathPlace))
+
+      Seq(birthPlace, deathPlace).flatMap(placeAbsolute).foreach { id =>
+        placeOccurrences.update(id, placeOccurrences(id) + 1)
+      }
 
       count += 1
     }
+
+    placesIndex.write(placesIndexFile, idPlaceMap.keys.map(id => id -> (normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap))), placeOccurrences(id))).toMap)
 
     val (nomsSorted, prenomsSorted) = (nomsSet.toSeq.sorted, prenomsSet.toSeq.sorted)
     val (nomsMap, prenomsMap) = (nomsSorted.zipWithIndex.toMap, prenomsSorted.zipWithIndex.toMap)
