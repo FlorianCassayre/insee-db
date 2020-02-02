@@ -23,7 +23,7 @@ abstract class DirectMappingResult[Q] extends LevelResult[Q, Q, ResultSet[Q]] {
 
   override private[db] def empty: ResultSet[Q] = ResultSet(Seq.empty, 0)
 
-  override def write(context: FileContext, data: Seq[(Int, Q)]): FileContext = {
+  override def write(context: FileContext, data: Map[Int, Q]): FileContext = {
     val seq = data.toIndexedSeq.sortBy(_._1)
     val count = seq.size
     context.writeInt(0, count)

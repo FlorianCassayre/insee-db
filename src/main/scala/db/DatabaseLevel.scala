@@ -12,6 +12,6 @@ abstract class DatabaseLevel[Q, P, R] {
 
   private[db] def empty: R
 
-  def write(context: FileContext, data: Seq[(Int, P)]): FileContext
+  def write(context: FileContext, data: Map[Int, P]): FileContext
 
 }

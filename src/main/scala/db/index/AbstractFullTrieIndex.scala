@@ -5,10 +5,9 @@ import db.file.FileContext
 import db.util.DatabaseUtils.{IntSize, binarySearch}
 
 import scala.annotation.tailrec
+import scala.collection.{Map, Seq}
 
-import collection.{Seq, Map}
-
-abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, R, T] {
+abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, R, T] with TrieBasedIndex {
 
   def canonicalize(t: T): Seq[Int]
 
@@ -21,24 +20,23 @@ abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, 
 
   @tailrec
   private def queryInternal(context: FileContext, offset: Int, limit: Int, values: Seq[Int], rest: Q): R = {
-    val childrenCount = context.readInt(0)
+    val childrenCount = childrenCountHandler.read(context, 0).toInt
     values match {
       case head +: tail =>
-        binarySearch(context.readInt, IntSize, childrenCount, 2 * IntSize, head) match {
+        binarySearch(keyHandler.read(context, _).toInt, childrenCountHandler.Size, childrenCount, keyHandler.Size + IntSize, head) match {
           case Some(resultIndex) => // Continue search, result set is decreasing
-            val nextPointer = context.readInt(resultIndex + IntSize)
+            val nextPointer = context.readInt(resultIndex + keyHandler.Size)
             queryInternal(context.reindexAbsolute(nextPointer), offset, limit, tail, rest)
           case None => // Stop search, result set is empty
             empty
         }
       case Seq() => // End of search for this level, return current result set
-        child.query(context.reindex(IntSize + 2 * IntSize * childrenCount), offset, limit, rest)
+        child.query(context.reindex(childrenCountHandler.Size + (keyHandler.Size + IntSize) * childrenCount), offset, limit, rest)
     }
   }
 
-  override def write(context: FileContext, data: Seq[(Int, P)]): FileContext = {
-    val valuesSeq = data.map(t => t.copy(_2 = getWriteParameter(t._2)))
-    val valuesMap1 = data.toMap
+  override def write(context: FileContext, data: Map[Int, P]): FileContext = {
+    val valuesMap = data.view.mapValues(getWriteParameter).toIndexedSeq
 
     import scala.collection._
 
@@ -72,20 +70,20 @@ abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, 
 
     val root = new PrefixTrie()
 
-    valuesSeq.foreach { case (id, set) =>
+    valuesMap.foreach { case (id, set) =>
       reorder(set).foreach(variant => root.insert(variant, id))
     }
 
     def writeTrie(trie: PrefixTrie, context: FileContext): FileContext = {
       val sorted = trie.children.keys.toSeq.sorted
       val count = sorted.size
-      context.writeInt(0, count)
-      val valuesMap = trie.values.toSeq.map(v => v -> valuesMap1(v))
-      var start = child.write(context.reindex((1 + 2 * count) * IntSize), valuesMap)
+      childrenCountHandler.write(context, 0, count)
+      val valuesMap = trie.values.map(v => v -> data(v)).toMap
+      var start = child.write(context.reindex(childrenCountHandler.Size + (keyHandler.Size + IntSize) * count), valuesMap)
       sorted.zipWithIndex.foreach { case (v, i) =>
         val child = trie.children(v)
-        context.writeInt((1 + 2 * i) * IntSize, v)
-        context.writeInt((1 + 2 * i + 1) * IntSize, start.getOffset)
+        keyHandler.write(context, childrenCountHandler.Size + (keyHandler.Size + IntSize) * i, v)
+        context.writeInt(childrenCountHandler.Size + (keyHandler.Size + IntSize) * i + keyHandler.Size, start.getOffset)
         start = writeTrie(child, start)
       }
       start

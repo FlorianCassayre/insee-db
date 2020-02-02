@@ -5,7 +5,8 @@ import java.util.Date
 
 import data._
 import db.file.FileContext
-import db.index.{ExactStringMachIndex, ExclusiveSubsetIndex, PrefixIndex}
+import db.file.writer.DataHandler
+import db.index.{ExactStringMachIndex, ExclusiveSubsetIndex, PointerBasedIndex, PrefixIndex, StringBasedIndex}
 import db.result.{DirectPersonResult, DirectPlaceResult, ReferenceResult}
 import reader.{InseePersonsReader, InseePlacesReader}
 
@@ -51,14 +52,14 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     override def getWriteParameter(q: String): Seq[Byte] = getQueryParameter(q)
   }
 
-  private val searchIndex: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] {
+  private val searchIndex: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
     override def getQueryParameter(q: PersonQuery): Set[Int] = q.nomsIds.toSet
     override def getWriteParameter(q: PersonProcessed): Set[Int] = q.noms.toSet
     override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] =
-      new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] {
+      new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
         override def getQueryParameter(q: PersonQuery): Set[Int] = q.prenomsIds.toSet
         override def getWriteParameter(q: PersonProcessed): Set[Int] = q.prenoms.toSet
-        override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new PrefixIndex[PersonQuery, PersonProcessed, ResultSet[Int]] {
+        override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new PrefixIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
           override def getQueryParameter(q: PersonQuery): Seq[Seq[Int]] = Seq(q.placeIds)
           override def getWriteParameter(q: PersonProcessed): Seq[Seq[Int]] = Seq(q.birthPlaceIds, q.deathPlaceIds).toSet.toSeq
           override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new ReferenceResult()
@@ -67,12 +68,13 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
       }
   }
 
-  //private val placesIndex = ??? // TODO
-
+  private val placesIndex: DatabaseLevel[String, String, ResultSet[Int]] = new PrefixIndex[String, String, ResultSet[Int]] with StringBasedIndex {
+    override def getQueryParameter(q: String): Seq[Seq[Int]] = Seq(q.getBytes.map(_.toInt).toSeq)
+    override def getWriteParameter(q: String): Seq[Seq[Int]] = getQueryParameter(q)
+    override val child = new ReferenceResult()
+  }
 
   /* Query methods */
-
-  private def normalizeString(str: String): String = str.trim.toLowerCase
 
   private def nameToId(name: String): Option[Int] = genericNameIndex.queryFirst(namesIndexFile, normalizeString(name))
 
@@ -108,16 +110,19 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
   private def idToAbsolutePlace(id: Int): Option[Seq[Int]] = idToPlaces(id).map(_.map(_._1))
 
   private def idToPlaceDisplay(id: Int): Option[String] = { // TODO change signature
-    idToPlaces(id).map(_.map(_._2.name).tail.reverse).map{ places =>
-      def join(seq: Seq[String]): String = seq.mkString(", ")
-      if(places.size >= 5) {
-        val (prefix, suffix) = places.splitAt(places.size - 4)
-        val prefixParenthesis = s"(${join(prefix)})"
-        val suffixJoined = join(suffix)
-        s"$prefixParenthesis $suffixJoined"
-      } else {
-        join(places)
-      }
+    idToPlaces(id).map(d => placeDisplay(d.map(_._2)))
+  }
+
+  private def placeDisplay(absolute: Seq[PlaceData]): String = {
+    val places = absolute.map(_.name).tail.reverse
+    def join(seq: Seq[String]): String = seq.mkString(", ")
+    if(places.size >= 5) {
+      val (prefix, suffix) = places.splitAt(places.size - 4)
+      val prefixParenthesis = s"(${join(prefix)})"
+      val suffixJoined = join(suffix)
+      s"$prefixParenthesis $suffixJoined"
+    } else {
+      join(places)
     }
   }
 
@@ -132,7 +137,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     require(limit >= 0 && offset >= 0)
 
     def processName(name: Option[String], translation: String => Option[Int]): Option[Seq[Int]] = {
-      val result = name.map(cleanSplit).getOrElse(Seq.empty).map(translation)
+      val result = name.map(cleanSplitAndNormalize).getOrElse(Seq.empty).map(translation)
       if(result.exists(_.isEmpty))
         None
       else
@@ -160,11 +165,20 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
   }
 
   def queryPlacesByPrefix(limit: Int, prefix: String): Seq[PlaceDisplay] = {
-
-    ???
+    val normalized = normalizeSentence(prefix)
+    placesIndex.query(placesIndexFile, 0, limit, normalized).entries.map(id => PlaceDisplay(id, idToPlaceDisplay(id).get))
   }
 
-  private def cleanSplit(str: String): IndexedSeq[String] = str.toLowerCase.trim.split("[^a-z]+").toVector.filter(_.nonEmpty)
+  private def cleanSplit(str: String): IndexedSeq[String] = str.trim.split("[^a-z]+").toVector.filter(_.nonEmpty)
+
+  private def normalizeString(str: String): String = {
+    import java.text.Normalizer
+    Normalizer.normalize(str.trim.toLowerCase, Normalizer.Form.NFD).replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+  } // TODO
+
+  private def normalizeSentence(str: String): String = cleanSplitAndNormalize(str).mkString(" ")
+
+  private def cleanSplitAndNormalize(str: String): IndexedSeq[String] = cleanSplit(str).map(normalizeString)
 
   def generateDatabase(inseeFilename: String, inseePlaceDirectory: String): Unit = {
     import scala.collection._
@@ -197,20 +211,23 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
       upTraversal(id, idPlaceMap(id), Seq.empty)
     }
 
-    placesData.write(placesDataFile, idPlaceMap.toIndexedSeq) // Write place data
+    placesData.write(placesDataFile, idPlaceMap) // Write place data
 
+    placesIndex.write(placesIndexFile, idPlaceMap.keys.map(id => id -> normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap)))).toMap)
+
+    // TODO: places prefix
 
     val iterator = InseePersonsReader.readCompiledFile(relativePath(inseeFilename)).filter(InseePersonsReader.isReasonable)
-      .take(100000) // TODO temporary
+      .take(10000) // TODO temporary
 
     val (nomsSet, prenomsSet) = (mutable.HashSet.empty[String], mutable.HashSet.empty[String])
-    val personsDataSeq = mutable.ArrayBuffer.empty[PersonData]
+    val personsDataMap = mutable.Map.empty[Int, PersonData]
     var count = 0
     iterator.foreach { p =>
       val id = count
-      nomsSet.addAll(cleanSplit(p.nom))
-      prenomsSet.addAll(cleanSplit(p.prenom))
-      personsDataSeq.addOne(PersonData(p.nom, p.prenom, p.gender, p.birthDate, inseeCodePlaceMap.getOrElse(p.birthCode, 0), p.deathDate, inseeCodePlaceMap.getOrElse(p.deathCode, 0)))
+      nomsSet.addAll(cleanSplitAndNormalize(p.nom))
+      prenomsSet.addAll(cleanSplitAndNormalize(p.prenom))
+      personsDataMap.put(id, PersonData(p.nom, p.prenom, p.gender, p.birthDate, inseeCodePlaceMap.getOrElse(p.birthCode, 0), p.deathDate, inseeCodePlaceMap.getOrElse(p.deathCode, 0)))
 
       count += 1
     }
@@ -218,17 +235,14 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     val (nomsSorted, prenomsSorted) = (nomsSet.toSeq.sorted, prenomsSet.toSeq.sorted)
     val (nomsMap, prenomsMap) = (nomsSorted.zipWithIndex.toMap, prenomsSorted.zipWithIndex.toMap)
 
-    genericNameIndex.write(surnamesIndexFile, nomsSorted.zipWithIndex.map(_.swap))
-    genericNameIndex.write(namesIndexFile, prenomsSorted.zipWithIndex.map(_.swap))
-    personsData.write(personsDataFile, personsDataSeq.zipWithIndex.map(_.swap))
+    genericNameIndex.write(surnamesIndexFile, nomsSorted.zipWithIndex.map(_.swap).toMap)
+    genericNameIndex.write(namesIndexFile, prenomsSorted.zipWithIndex.map(_.swap).toMap)
+    personsData.write(personsDataFile, personsDataMap)
 
-    val searchValues = personsDataSeq.map(p => PersonProcessed(cleanSplit(p.nom).map(nomsMap), cleanSplit(p.prenom).map(prenomsMap), p.gender, p.birthDate, placeAbsolute(p.birthPlaceId), p.deathDate, placeAbsolute(p.deathPlaceId))).zipWithIndex.map(_.swap)
+    val searchValues = personsDataMap.view.mapValues(p => PersonProcessed(cleanSplitAndNormalize(p.nom).map(nomsMap), cleanSplitAndNormalize(p.prenom).map(prenomsMap), p.gender, p.birthDate, placeAbsolute(p.birthPlaceId), p.deathDate, placeAbsolute(p.deathPlaceId))).toMap
 
     searchIndex.write(searchIndexFile, searchValues)
 
-    // TODO: places prefix
-
-    ???
   }
 
 
