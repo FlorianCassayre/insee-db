@@ -34,7 +34,7 @@ class FileContext(file: RandomAccessFile, val start: Long = 0) {
     seek(i)
     val high = file.readByte()
     val low = file.readInt()
-    ((high.toLong & 0xff) << 32) | (low.toLong & 0xffffffff)
+    ((high & 0xffL) << 32) | (low & 0xffffffffL)
   }
 
   def readString(i: Long): (String, FileContext) = {
