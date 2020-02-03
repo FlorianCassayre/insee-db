@@ -25,7 +25,7 @@ abstract class ExactStringMachIndex[Q, P] extends LevelIndex[Q, P, Option[Int], 
         val headerOffset = ByteSize + (if(containsValue) IntSize else 0)
         binarySearch(context.readByte, headerOffset, count, ByteSize + PointerSize, head.toInt) match {
           case Some(value) =>
-            val nextPointer = context.readInt(value + ByteSize)
+            val nextPointer = context.readPointer(value + ByteSize)
             queryInternal(context.reindexAbsolute(nextPointer), offset, limit, tail)
           case None =>
             None
