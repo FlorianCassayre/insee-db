@@ -9,6 +9,8 @@ import scala.collection.{Map, Seq}
 
 abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, R, T] with TrieBasedIndex {
 
+  val ignoreRoot: Boolean = false
+
   def canonicalize(t: T): Seq[Int]
 
   def reorder(t: T): Seq[Seq[Int]]
@@ -40,7 +42,7 @@ abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, 
 
     import scala.collection._
 
-    class PrefixTrie(val children: mutable.HashMap[Int, PrefixTrie] = mutable.HashMap.empty, val values: mutable.Set[Int] = mutable.Set.empty) {
+    class PrefixTrie(val children: mutable.HashMap[Int, PrefixTrie] = mutable.HashMap.empty, val values: mutable.Set[Int] = mutable.Set.empty, isRoot: Boolean = false) {
       def insert(key: Seq[Int], value: Int): Unit = {
         key match {
           case head +: tail =>
@@ -51,9 +53,10 @@ abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, 
                 children.put(head, child)
                 child
             }
-            values.add(value)
+            if(!isRoot)
+              values.add(value)
             child.insert(tail, value)
-          case Seq() => values.add(value)
+          case Seq() => if(!isRoot) values.add(value)
         }
       }
       def query(prefix: Seq[Int]): Set[Int] = {
@@ -68,7 +71,7 @@ abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, 
       }
     }
 
-    val root = new PrefixTrie()
+    val root = new PrefixTrie(isRoot = ignoreRoot)
 
     valuesMap.foreach { case (id, set) =>
       reorder(set).foreach(variant => root.insert(variant, id))

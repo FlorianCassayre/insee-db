@@ -53,6 +53,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
   }
 
   private val searchIndex: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
+    override val ignoreRoot: Boolean = true
     override def getQueryParameter(q: PersonQuery): Set[Int] = q.nomsIds.toSet
     override def getWriteParameter(q: PersonProcessed): Set[Int] = q.noms.toSet
     override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] =
