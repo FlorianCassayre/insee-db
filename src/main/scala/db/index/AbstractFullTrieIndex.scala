@@ -38,8 +38,6 @@ abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, 
   }
 
   override def write(context: FileContext, data: Map[Int, P]): FileContext = {
-    val valuesMap = data.view.mapValues(getWriteParameter).toIndexedSeq
-
     import scala.collection._
 
     class PrefixTrie(val children: mutable.HashMap[Int, PrefixTrie] = mutable.HashMap.empty, val values: mutable.Set[Int] = mutable.Set.empty, isRoot: Boolean = false) {
@@ -73,7 +71,8 @@ abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, 
 
     val root = new PrefixTrie(isRoot = ignoreRoot)
 
-    valuesMap.foreach { case (id, set) =>
+    data.foreach { case (id, p) =>
+      val set = getWriteParameter(p)
       reorder(set).foreach(variant => root.insert(variant, id))
     }
 
