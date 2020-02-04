@@ -1,9 +1,11 @@
-import java.util.Date
+package util
+
 import java.text.SimpleDateFormat
+import java.util.Date
 
 import data.PersonDisplay
 
-import collection.Seq
+import scala.collection.Seq
 
 object CliUtils {
 

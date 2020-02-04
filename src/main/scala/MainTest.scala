@@ -2,11 +2,11 @@ import java.io.File
 
 import db.InseeDatabase
 
-import CliUtils._
+import util.CliUtils._
 
-object Main extends App {
+object MainTest extends App {
 
-  val db = new InseeDatabase(new File(args(0)), readonly = false)
+  val db = new InseeDatabase(new File(args(0)))
 
   val surname = "jean"
   val name = ""
