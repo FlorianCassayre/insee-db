@@ -178,7 +178,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
   def generateDatabase(inseeCompiledFile: File, inseePlaceDirectory: File, inseeNamesFiles: File): Unit = {
     import scala.collection._
 
-    var placeTree = InseePlacesReader.readPlaces(inseePlaceDirectory)
+    var (placeTree, countryTranslation) = InseePlacesReader.readPlaces(inseePlaceDirectory) // TODO
 
     var idCounter = 0
     def processPlaceTree(node: PlaceTree, parent: Option[Int]): (Map[Int, PlaceData], Map[String, Int]) = {
@@ -231,9 +231,11 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
         else
           StringUtils.capitalizeFirstPerWord(prenomNormal)
 
+      def getPlace(code: String): Int = inseeCodePlaceMap.getOrElse(countryTranslation.getOrElse(code, code), 0)
+
       nomsSet.addAll(cleanSplitAndNormalize(p.nom))
       prenomsSet.addAll(cleanSplitAndNormalize(p.prenom))
-      val (birthPlace, deathPlace) = (inseeCodePlaceMap.getOrElse(p.birthCode, 0), inseeCodePlaceMap.getOrElse(p.deathCode, 0))
+      val (birthPlace, deathPlace) = (getPlace(p.birthCode), getPlace(p.deathCode))
       personsDataMap.put(id, PersonData(p.nom, prenomPretty, p.gender, p.birthDate, birthPlace, p.deathDate, deathPlace))
 
       Seq(birthPlace, deathPlace).flatMap(placeAbsolute).foreach { id =>
@@ -245,6 +247,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     namesAccent = null
     inseeCodePlaceMap = null
+    countryTranslation = null
 
     placesIndex.write(placesIndexFile, idPlaceMap.keys.map(id => id -> (normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap))), placeOccurrences(id))).toMap)
 

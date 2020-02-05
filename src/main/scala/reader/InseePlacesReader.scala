@@ -32,12 +32,13 @@ object InseePlacesReader {
     ).toVector
 
   def readCountries(file: File): Seq[PlaceCountry] =
-    csvReader(file).map(r =>
-      PlaceCountry(r.get(0), StringUtils.capitalizeFirstPerWord(r.get(5)))
-    ).toVector
+    csvReader(file).map { r =>
+      val parent = r.get(3)
+      PlaceCountry(r.get(0), StringUtils.capitalizeFirstPerWord(r.get(5)), if(parent.nonEmpty) Some(parent) else None)
+    }.toVector
 
 
-  def readPlaces(fileCommunes: File, fileDepartements: File, fileRegions: File, fileCountries: File): PlaceTree = {
+  def readPlaces(fileCommunes: File, fileDepartements: File, fileRegions: File, fileCountries: File): (PlaceTree, Map[String, String]) = {
     val (oldCommunes, communes) = readCommunes(fileCommunes)
     val departements = readDepartements(fileDepartements)
     val regions = readRegions(fileRegions)
@@ -45,7 +46,7 @@ object InseePlacesReader {
 
     val France = "France"
 
-    PlaceTree(None, "", countries.map(country =>
+    val tree = PlaceTree(None, "", countries.filter(_.currentInseeCode.isEmpty).map(country =>
       PlaceTree(Some(country.inseeCode), country.name, if(country.name == France)
         regions.map(r =>
           PlaceTree(None, r.name,
@@ -64,9 +65,13 @@ object InseePlacesReader {
         ).toSet
       else Set.empty)
     ).toSet)
+
+    val countryTranslation = countries.flatMap(old => old.currentInseeCode.map(current => old.inseeCode -> current)).toMap
+
+    (tree, countryTranslation)
   }
 
-  def readPlaces(directory: File): PlaceTree = {
+  def readPlaces(directory: File): (PlaceTree, Map[String, String]) = {
     require(directory.isDirectory)
 
     def sub(filename: String): File = new File(directory.getAbsolutePath + "/" + filename)
