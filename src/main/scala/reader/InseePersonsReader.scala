@@ -6,10 +6,10 @@ import java.util.zip.GZIPInputStream
 import java.util.{Calendar, Date}
 
 import data.PersonRaw
+import db.util.StringUtils
 import org.apache.commons.csv.CSVFormat
 
 import scala.util.Try
-
 import scala.jdk.CollectionConverters._
 
 object InseePersonsReader {
@@ -33,7 +33,7 @@ object InseePersonsReader {
 
     // `view` is required to preserve the iterator
     iterator.asScala.view.map { r =>
-      PersonRaw(ReaderUtils.capitalizeFirstPerWord(r.get(0)), ReaderUtils.capitalizeFirstPerWord(r.get(1)), parseGender(r.get(2)), parseDate(r.get(3)), r.get(4), parseDate(r.get(7)), r.get(8))
+      PersonRaw(r.get(0).toUpperCase, StringUtils.capitalizeFirstPerWord(r.get(1)), parseGender(r.get(2)), parseDate(r.get(3)), r.get(4), parseDate(r.get(7)), r.get(8))
     }
   }
 

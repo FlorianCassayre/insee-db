@@ -1,8 +1,15 @@
 package reader
 
+import java.io.{BufferedReader, File, FileInputStream, InputStreamReader}
+
+import org.apache.commons.csv.{CSVFormat, CSVRecord}
+
+import scala.jdk.CollectionConverters._
+
 object ReaderUtils {
 
-  // https://stackoverflow.com/a/48494552/4413709
-  def capitalizeFirstPerWord(str: String): String = raw"\b((?<!\b')\w+)".r.replaceAllIn(str.toLowerCase, _.group(1).capitalize)
+  def csvReader(file: File, delimiter: Char = ','): Iterable[CSVRecord] = {
+    CSVFormat.DEFAULT.withFirstRecordAsHeader().withDelimiter(delimiter).parse(new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"))).asScala
+  }
 
 }

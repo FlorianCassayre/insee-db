@@ -1,20 +1,15 @@
 package reader
 
-import java.io.{BufferedReader, File, FileInputStream, InputStreamReader}
+import java.io.File
 
 import data._
-import org.apache.commons.csv.{CSVFormat, CSVParser, CSVRecord}
-
-import scala.jdk.CollectionConverters._
+import db.util.StringUtils
+import reader.ReaderUtils._
 
 /**
  * https://www.insee.fr/fr/information/3720946
  */
 object InseePlacesReader {
-
-  private def csvReader(file: File): Iterable[CSVRecord] = {
-    CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"))).asScala
-  }
 
   def readCommunes(file: File): (Seq[PlaceOldCommune], Seq[PlaceCommune]) = {
     val (oldCommunes, currentCommunes) = csvReader(file).map { r =>
@@ -38,7 +33,7 @@ object InseePlacesReader {
 
   def readCountries(file: File): Seq[PlaceCountry] =
     csvReader(file).map(r =>
-      PlaceCountry(r.get(0), ReaderUtils.capitalizeFirstPerWord(r.get(5)))
+      PlaceCountry(r.get(0), StringUtils.capitalizeFirstPerWord(r.get(5)))
     ).toVector
 
 

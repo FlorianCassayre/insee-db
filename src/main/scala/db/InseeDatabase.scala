@@ -8,7 +8,9 @@ import db.file.FileContext
 import db.file.writer.DataHandler
 import db.index.{ExactStringMachIndex, ExclusiveSubsetIndex, PointerBasedIndex, PrefixIndex, StringBasedIndex}
 import db.result.{DirectPersonResult, DirectPlaceResult, LimitedReferenceResult, ReferenceResult}
-import reader.{InseePersonsReader, InseePlacesReader}
+import db.util.StringUtils
+import reader.{InseeNamesReader, InseePersonsReader, InseePlacesReader}
+import util.StringUtils._
 
 import scala.annotation.tailrec
 import scala.collection.{Seq, Set}
@@ -173,18 +175,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     placesIndex.query(placesIndexFile, 0, limit, normalized).entries.map(id => PlaceDisplay(id, idToPlaceDisplay(id).get))
   }
 
-  private def cleanSplit(str: String): IndexedSeq[String] = str.trim.split("[^a-z]+").toVector.filter(_.nonEmpty)
-
-  private def normalizeString(str: String): String = {
-    import java.text.Normalizer
-    Normalizer.normalize(str.trim.toLowerCase, Normalizer.Form.NFD).replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
-  } // TODO
-
-  private def normalizeSentence(str: String): String = cleanSplitAndNormalize(str).mkString(" ")
-
-  private def cleanSplitAndNormalize(str: String): IndexedSeq[String] = cleanSplit(normalizeString(str))
-
-  def generateDatabase(inseeFile: File, inseePlaceDirectory: File): Unit = {
+  def generateDatabase(inseeCompiledFile: File, inseePlaceDirectory: File, inseeNamesFiles: File): Unit = {
     import scala.collection._
 
     var placeTree = InseePlacesReader.readPlaces(inseePlaceDirectory)
@@ -219,20 +210,31 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     placesData.write(placesDataFile, idPlaceMap) // Write place data
 
+    var namesAccent = InseeNamesReader.readNames(inseeNamesFiles)
 
-    val iterator = InseePersonsReader.readCompiledFile(inseeFile).filter(InseePersonsReader.isReasonable)
-      .take(1000) // TODO temporary
+    val iterator = InseePersonsReader.readCompiledFile(inseeCompiledFile).filter(InseePersonsReader.isReasonable)
+      .take(5000000) // TODO temporary
 
+    val stopRegex = "[^a-z]+".r
     var (nomsSet, prenomsSet) = (mutable.HashSet.empty[String], mutable.HashSet.empty[String])
     var personsDataMap = mutable.Map.empty[Int, PersonData]
     var placeOccurrences = mutable.Seq.fill(idPlaceMap.size)(0)
     var count = 0
     iterator.foreach { p =>
       val id = count
+      val prenomNormal = normalizeString(p.prenom)
+      val stop = stopRegex.findAllIn(prenomNormal).toSeq
+      val split = stopRegex.split(prenomNormal)
+      val prenomPretty =
+        if(stop.size == split.length - 1)
+          split.map(s => namesAccent.getOrElse(s, StringUtils.capitalizeFirstPerWord(s))).zip(stop :+ "").map { case (p, s) => p + s }.mkString
+        else
+          StringUtils.capitalizeFirstPerWord(prenomNormal)
+
       nomsSet.addAll(cleanSplitAndNormalize(p.nom))
       prenomsSet.addAll(cleanSplitAndNormalize(p.prenom))
       val (birthPlace, deathPlace) = (inseeCodePlaceMap.getOrElse(p.birthCode, 0), inseeCodePlaceMap.getOrElse(p.deathCode, 0))
-      personsDataMap.put(id, PersonData(p.nom, p.prenom, p.gender, p.birthDate, birthPlace, p.deathDate, deathPlace))
+      personsDataMap.put(id, PersonData(p.nom, prenomPretty, p.gender, p.birthDate, birthPlace, p.deathDate, deathPlace))
 
       Seq(birthPlace, deathPlace).flatMap(placeAbsolute).foreach { id =>
         placeOccurrences.update(id, placeOccurrences(id) + 1)
@@ -241,6 +243,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
       count += 1
     }
 
+    namesAccent = null
     inseeCodePlaceMap = null
 
     placesIndex.write(placesIndexFile, idPlaceMap.keys.map(id => id -> (normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap))), placeOccurrences(id))).toMap)
