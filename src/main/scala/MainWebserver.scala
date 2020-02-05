@@ -12,6 +12,7 @@ import akka.stream.ActorMaterializer
 import data.{PersonDisplay, PlaceDisplay}
 import db.InseeDatabase
 import spray.json._
+import web.CORSHandler
 
 import scala.collection.Seq
 import scala.concurrent.ExecutionContextExecutor
@@ -24,6 +25,8 @@ object MainWebserver extends App with SprayJsonSupport with DefaultJsonProtocol 
   implicit val system: ActorSystem = ActorSystem()
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContextExecutor = system.dispatcher
+
+  private val cors = new CORSHandler {}
 
   sealed abstract class Response {
     val code: Int
@@ -96,7 +99,7 @@ object MainWebserver extends App with SprayJsonSupport with DefaultJsonProtocol 
               val result = db.queryPlacesByPrefix(limit, prefix)
 
               val successResponse = PlacesResponse(OK.intValue, result)
-              complete(successResponse.code, successResponse)
+              cors.corsHandler(complete(successResponse.code, successResponse))
             }
           }
         }
@@ -110,7 +113,7 @@ object MainWebserver extends App with SprayJsonSupport with DefaultJsonProtocol 
                 val result = db.queryPersons(offset, limit, Some(surname), Some(name), Some(place), None, None, None, None)
 
                 val successResponse = PersonsResponse(OK.intValue, result.total, result.entries)
-                complete(successResponse.code, successResponse)
+                cors.corsHandler(complete(successResponse.code, successResponse))
               }
             }
           }
