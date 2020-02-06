@@ -178,7 +178,19 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
   def generateDatabase(inseeCompiledFile: File, inseePlaceDirectory: File, inseeNamesFiles: File): Unit = {
     import scala.collection._
 
+    val t0 = System.currentTimeMillis()
+    def getLogPrefix(): String = "[" + (System.currentTimeMillis() - t0).toString.reverse.padTo(10, '0').reverse + "]: "
+    def log(message: String): Unit = println(getLogPrefix() + message)
+    def logEllipse(message: String): Unit = print(getLogPrefix() + message + "... ")
+    def logOK(): Unit = println("OK")
+
+    log("Generating database")
+
+    logEllipse("Loading places")
+
     var (placeTree, countryTranslation) = InseePlacesReader.readPlaces(inseePlaceDirectory) // TODO
+
+    logOK()
 
     var idCounter = 0
     def processPlaceTree(node: PlaceTree, parent: Option[Int]): (Map[Int, PlaceData], Map[String, Int]) = {
@@ -192,7 +204,11 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
       }
     }
 
+    logEllipse("Building place tree")
+
     var (idPlaceMap, inseeCodePlaceMap) = processPlaceTree(placeTree, None)
+
+    logOK()
 
     placeTree = null
 
@@ -208,12 +224,22 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
       upTraversal(id, idPlaceMap(id), Seq.empty)
     }
 
+    logEllipse("Writing places data")
+
     placesData.write(placesDataFile, idPlaceMap) // Write place data
+
+    logOK()
+
+    logEllipse("Reading formatted names")
 
     var namesAccent = InseeNamesReader.readNames(inseeNamesFiles)
 
+    logOK()
+
+    logEllipse("Iterating through dataset")
+
     val iterator = InseePersonsReader.readCompiledFile(inseeCompiledFile).filter(InseePersonsReader.isReasonable)
-      .take(5000000) // TODO temporary
+      .take(1000) // TODO temporary
 
     val stopRegex = "[^a-z]+".r
     var (nomsSet, prenomsSet) = (mutable.HashSet.empty[String], mutable.HashSet.empty[String])
@@ -245,37 +271,74 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
       count += 1
     }
 
+    logOK()
+
     namesAccent = null
     inseeCodePlaceMap = null
     countryTranslation = null
 
+    logEllipse("Writing places index")
+
     placesIndex.write(placesIndexFile, idPlaceMap.keys.map(id => id -> (normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap))), placeOccurrences(id))).toMap)
+
+    logOK()
 
     placeOccurrences = null
 
+    logEllipse("Attributing identifiers to names and surnames")
+
     var (nomsSorted, prenomsSorted) = (nomsSet.toSeq.sorted, prenomsSet.toSeq.sorted)
+
+    logOK()
 
     nomsSet = null
     prenomsSet = null
 
+    logEllipse("Building hashmap for names and surnames")
+
     var (nomsMap, prenomsMap) = (nomsSorted.zipWithIndex.toMap, prenomsSorted.zipWithIndex.toMap)
 
+    logOK()
+
+    logEllipse("Writing surnames index")
+
     genericNameIndex.write(surnamesIndexFile, nomsSorted.zipWithIndex.map(_.swap).toMap)
+
+    logOK()
+
+    logEllipse("Writing names index")
+
     genericNameIndex.write(namesIndexFile, prenomsSorted.zipWithIndex.map(_.swap).toMap)
+
+    logOK()
 
     nomsSorted = null
     prenomsSorted = null
 
+    logEllipse("Writing persons data")
+
     personsData.write(personsDataFile, personsDataMap)
 
+    logOK()
+
+    logEllipse("Building search data")
+
     val searchValues = personsDataMap.view.mapValues(p => PersonProcessed(cleanSplitAndNormalize(p.nom).map(nomsMap), cleanSplitAndNormalize(p.prenom).map(prenomsMap), p.gender, p.birthDate, placeAbsolute(p.birthPlaceId), p.deathDate, placeAbsolute(p.deathPlaceId))).toMap
+
+    logOK()
 
     personsDataMap = null
     nomsMap = null
     prenomsMap = null
     idPlaceMap = null
 
+    logEllipse("Writing search index (this will take some time)")
+
     searchIndex.write(searchIndexFile, searchValues)
+
+    logOK()
+
+    log("Successfully generated the database, exiting")
 
   }
 
