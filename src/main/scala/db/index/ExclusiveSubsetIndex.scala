@@ -1,14 +1,18 @@
 package db.index
 
-import collection.{Seq, Set}
+import scala.collection.Seq
 
-abstract class ExclusiveSubsetIndex[Q, P, R] extends AbstractFullTrieIndex[Q, P, R, Set[Int]] {
+abstract class ExclusiveSubsetIndex[Q, P, R] extends AbstractFullTrieIndex[Q, P, R, Seq[Int]] {
 
-  override def canonicalize(set: Set[Int]): Seq[Int] = set.toSeq.sorted
+  val MaxCombinations = 9 // Estimated threshold: https://i.cassayre.me/20200207153022.png
 
-  override def reorder(set: Set[Int]): Seq[Seq[Int]] = {
-    val seq = set.toSeq
-    (1 to seq.size).flatMap(n => seq.combinations(n)).map(_.sorted)
+  override def canonicalize(seq: Seq[Int]): Seq[Int] = seq.distinct.sorted
+
+  override def reorder(seq: Seq[Int]): Seq[Seq[Int]] = {
+    val sorted = seq.distinct.sorted
+    val first = (1 to Math.min(sorted.size, MaxCombinations)).flatMap(n => sorted.combinations(n)).map(_.sorted)
+    val prefixes = (1 to sorted.size).map(sorted.take)
+    (first ++ prefixes).distinct
   }
 
 }

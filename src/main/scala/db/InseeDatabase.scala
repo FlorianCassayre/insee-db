@@ -56,12 +56,12 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   private val searchIndex: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
     override val ignoreRoot: Boolean = true
-    override def getQueryParameter(q: PersonQuery): Set[Int] = q.nomsIds.toSet
-    override def getWriteParameter(q: PersonProcessed): Set[Int] = q.noms.toSet
+    override def getQueryParameter(q: PersonQuery): Seq[Int] = q.nomsIds
+    override def getWriteParameter(q: PersonProcessed): Seq[Int] = q.noms
     override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] =
       new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
-        override def getQueryParameter(q: PersonQuery): Set[Int] = q.prenomsIds.toSet
-        override def getWriteParameter(q: PersonProcessed): Set[Int] = q.prenoms.toSet
+        override def getQueryParameter(q: PersonQuery): Seq[Int] = q.prenomsIds
+        override def getWriteParameter(q: PersonProcessed): Seq[Int] = q.prenoms
         override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new PrefixIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
           override def getQueryParameter(q: PersonQuery): Seq[Seq[Int]] = Seq(q.placeIds)
           override def getWriteParameter(q: PersonProcessed): Seq[Seq[Int]] = Seq(q.birthPlaceIds, q.deathPlaceIds).toSet.toSeq
