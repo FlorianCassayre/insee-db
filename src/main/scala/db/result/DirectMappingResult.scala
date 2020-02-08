@@ -1,15 +1,14 @@
 package db.result
 
-import db.file.FileContext
+import db.file.{FileContextIn, FileContextOut}
 import db.{LevelResult, ResultSet}
-
 import db.util.DatabaseUtils._
 
 import collection._
 
 abstract class DirectMappingResult[Q] extends LevelResult[Q, Q, ResultSet[Q]] {
 
-  override private[db] def readResult(context: FileContext, offset: Int, limit: Int): ResultSet[Q] = {
+  override private[db] def readResult(context: FileContextIn, offset: Int, limit: Int): ResultSet[Q] = {
     val count = context.readInt(0)
     val end = Math.min(offset + limit, count)
     val pointers = (offset until end).map(i => context.readPointer(IntSize + i * PointerSize))
@@ -18,23 +17,27 @@ abstract class DirectMappingResult[Q] extends LevelResult[Q, Q, ResultSet[Q]] {
     ResultSet(seq, count)
   }
 
-  def readResultEntry(context: FileContext): Q
+  def readResultEntry(context: FileContextIn): Q
 
   override private[db] def empty: ResultSet[Q] = ResultSet(Seq.empty, 0)
 
-  override def write(context: FileContext, data: Map[Int, Q]): FileContext = {
+  override def write(context: FileContextOut, data: Map[Int, Q]): Unit = {
     val seq = data.toIndexedSeq.sortBy(_._1)
     val count = seq.size
-    context.writeInt(0, count)
-    var start = context.reindex(IntSize + count * PointerSize)
-    seq.zipWithIndex.foreach { case ((id, v), i) =>
+    context.writeInt(count)
+    val sortedWithAddress = seq.zipWithIndex.map { case ((id, v), i) =>
       assert(id == i)
-      context.writePointer(IntSize + i * PointerSize, start.getOffset)
-      start = writeResultEntry(start, v)
+      val address = context.getOffset
+      context.writeEmptyPointer()
+      (v, address)
     }
-    start
+    sortedWithAddress.foreach { case (v, address) =>
+      val valueAddress = context.getOffset
+      context.bufferAppendPointer(address, valueAddress)
+      writeResultEntry(context, v)
+    }
   }
 
-  def writeResultEntry(context: FileContext, entry: Q): FileContext
+  def writeResultEntry(context: FileContextOut, entry: Q): Unit
 
 }

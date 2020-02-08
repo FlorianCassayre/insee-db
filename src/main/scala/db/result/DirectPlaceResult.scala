@@ -1,14 +1,13 @@
 package db.result
 
 import data.PlaceData
-import db.file.FileContext
-
+import db.file.{FileContextIn, FileContextOut}
 import db.util.DatabaseUtils._
 
 class DirectPlaceResult extends DirectMappingResult[PlaceData] {
 
-  override def readResultEntry(context: FileContext): PlaceData = {
-    def readIntOption(context: FileContext, offset: Int): Option[Int] = {
+  override def readResultEntry(context: FileContextIn): PlaceData = {
+    def readIntOption(context: FileContextIn, offset: Int): Option[Int] = {
       val v = context.readInt(offset)
       if(v >= 0) Some(v) else None
     }
@@ -17,11 +16,10 @@ class DirectPlaceResult extends DirectMappingResult[PlaceData] {
     PlaceData(name, parent)
   }
 
-  override def writeResultEntry(context: FileContext, entry: PlaceData): FileContext = {
-    def writeIntOption(context: FileContext, offset: Int, option: Option[Int]): Unit = context.writeInt(offset, option.getOrElse(-1))
-    val next = context.writeString(0, entry.name)
-    writeIntOption(next, 0, entry.parent)
-    next.reindex(IntSize)
+  override def writeResultEntry(context: FileContextOut, entry: PlaceData): Unit = {
+    def writeIntOption(option: Option[Int]): Unit = context.writeInt(option.getOrElse(-1))
+    context.writeString(entry.name)
+    writeIntOption(entry.parent)
   }
 
 }

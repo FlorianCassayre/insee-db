@@ -1,22 +1,23 @@
 package db.index
 
 import db.LevelIndex
-import db.file.FileContext
+import db.file.{FileContextIn, FileContextOut}
 import db.util.DatabaseUtils._
 
 import scala.annotation.tailrec
 import scala.collection.{+:, Map, Seq, mutable}
 
+// TODO duplicated code
 abstract class ExactStringMachIndex[Q, P] extends LevelIndex[Q, P, Option[Int], Seq[Byte]] {
 
   private val MaskFlag = 0x80
   private val MaskCount = ~MaskFlag & 0xff
 
-  override def query(context: FileContext, offset: Int, limit: Int, parameters: Q): Option[Int] =
+  override def query(context: FileContextIn, offset: Int, limit: Int, parameters: Q): Option[Int] =
     queryInternal(context, offset, limit, getQueryParameter(parameters))
 
   @tailrec
-  private def queryInternal(context: FileContext, offset: Int, limit: Int, parameter: Seq[Byte]): Option[Int] = {
+  private def queryInternal(context: FileContextIn, offset: Int, limit: Int, parameter: Seq[Byte]): Option[Int] = {
     val header = context.readByte(0)
     val (flag, count) = (header & MaskFlag, header & MaskCount)
     val containsValue = flag != 0
@@ -34,7 +35,7 @@ abstract class ExactStringMachIndex[Q, P] extends LevelIndex[Q, P, Option[Int], 
     }
   }
 
-  override def write(context: FileContext, data: Map[Int, P]): FileContext = {
+  override def write(context: FileContextOut, data: Map[Int, P]): Unit = {
 
     class Trie(val children: mutable.HashMap[Byte, Trie] = mutable.HashMap.empty, var value: Option[Int] = None) {
       def insert(key: Seq[Byte], v: Int): Unit = {
@@ -71,28 +72,31 @@ abstract class ExactStringMachIndex[Q, P] extends LevelIndex[Q, P, Option[Int], 
       root.insert(getWriteParameter(v), id)
     }
 
-    def writeTrie(trie: Trie, context: FileContext): FileContext = {
+    def writeTrie(trie: Trie): Unit = {
       val count = trie.children.size
       val flag = trie.value.isDefined
       val header = (count & MaskCount) | (if(flag) MaskFlag else 0)
-      context.writeByte(0, header)
+      context.writeByte(header)
       if(flag) {
-        context.writeInt(ByteSize, trie.value.get)
+        context.writeInt(trie.value.get)
       }
-      val headerOffset = ByteSize + (if(flag) IntSize else 0)
-      var start = context.reindex(headerOffset + (ByteSize + PointerSize) * count)
-      trie.children.keys.toSeq.sorted.zipWithIndex.foreach { case (k, i) =>
+      val sorted = trie.children.keys.toSeq.sorted
+      val sortedWithAddress = sorted.map { k =>
+        context.writeByte(k)
+        val address = context.getOffset
+        context.writeEmptyPointer()
+        (k, address)
+      }
+
+      sortedWithAddress.foreach { case (k, address) =>
         val child = trie.children(k)
-        val off = headerOffset + (ByteSize + PointerSize) * i
-        context.writeByte(off, k)
-        context.writePointer(off + ByteSize, start.getOffset)
-        start = writeTrie(child, start)
+        val childAddress = context.getOffset
+        context.bufferAppendPointer(address, childAddress)
+        writeTrie(child)
       }
-      start
     }
 
-    writeTrie(root, context)
-
+    writeTrie(root)
   }
 
   override private[db] def empty: Option[Int] = None

@@ -1,7 +1,5 @@
 package db.util
 
-import db.file.FileContext
-
 object DatabaseUtils {
 
   val LongSize: Int = java.lang.Long.BYTES

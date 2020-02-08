@@ -1,7 +1,7 @@
 package db.index
 
 import db.LevelIndexParent
-import db.file.FileContext
+import db.file.{FileContextIn, FileContextOut}
 import db.util.DatabaseUtils.{PointerSize, binarySearch}
 
 import scala.annotation.tailrec
@@ -15,13 +15,13 @@ abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, 
 
   def reorder(t: T): Seq[Seq[Int]]
 
-  override def query(context: FileContext, offset: Int, limit: Int, parameters: Q): R = {
+  override def query(context: FileContextIn, offset: Int, limit: Int, parameters: Q): R = {
     val canonical = canonicalize(getQueryParameter(parameters))
     queryInternal(context, offset, limit, canonical, parameters)
   }
 
   @tailrec
-  private def queryInternal(context: FileContext, offset: Int, limit: Int, values: Seq[Int], rest: Q): R = {
+  private def queryInternal(context: FileContextIn, offset: Int, limit: Int, values: Seq[Int], rest: Q): R = {
     val childrenCount = childrenCountHandler.read(context, 0).toInt
     values match {
       case head +: tail =>
@@ -37,7 +37,7 @@ abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, 
     }
   }
 
-  override def write(context: FileContext, data: Map[Int, P]): FileContext = {
+  override def write(context: FileContextOut, data: Map[Int, P]): Unit = {
     import scala.collection._
 
     class PrefixTrie(val children: mutable.HashMap[Int, PrefixTrie] = mutable.HashMap.empty, val values: mutable.Set[Int] = mutable.Set.empty, isRoot: Boolean = false) {
@@ -76,21 +76,26 @@ abstract class AbstractFullTrieIndex[Q, P, R, T] extends LevelIndexParent[Q, P, 
       reorder(set).foreach(variant => root.insert(variant, id))
     }
 
-    def writeTrie(trie: PrefixTrie, context: FileContext): FileContext = {
+    def writeTrie(trie: PrefixTrie): Unit = {
       val sorted = trie.children.keys.toSeq.sorted
       val count = sorted.size
-      childrenCountHandler.write(context, 0, count)
-      val valuesMap = trie.values.map(v => v -> data(v)).toMap
-      var start = child.write(context.reindex(childrenCountHandler.Size + (keyHandler.Size + PointerSize) * count), valuesMap)
-      sorted.zipWithIndex.foreach { case (v, i) =>
-        val child = trie.children(v)
-        keyHandler.write(context, childrenCountHandler.Size + (keyHandler.Size + PointerSize) * i, v)
-        context.writePointer(childrenCountHandler.Size + (keyHandler.Size + PointerSize) * i + keyHandler.Size, start.getOffset)
-        start = writeTrie(child, start)
+      childrenCountHandler.write(context, count)
+      val sortedWithAddress = sorted.map { v =>
+        keyHandler.write(context, v)
+        val address = context.getOffset
+        context.writeEmptyPointer()
+        (v, address)
       }
-      start
+      val valuesMap = trie.values.map(v => v -> data(v)).toMap
+      child.write(context, valuesMap)
+      sortedWithAddress.foreach { case (v, address) =>
+        val child = trie.children(v)
+        val childAddress = context.getOffset
+        context.bufferAppendPointer(address, childAddress)
+        writeTrie(child)
+      }
     }
 
-    writeTrie(root, context)
+    writeTrie(root)
   }
 }

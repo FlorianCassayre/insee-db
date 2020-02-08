@@ -3,15 +3,15 @@ package db.result
 import java.util.Date
 
 import data.PersonData
-import db.file.FileContext
+import db.file.{FileContextIn, FileContextOut}
 import db.util.DatabaseUtils._
 
 class DirectPersonResult extends DirectMappingResult[PersonData] {
 
   private val DateSize = LongSize // TODO reduce date memory footprint (can be represented in <8 bytes)
 
-  override def readResultEntry(context: FileContext): PersonData = {
-    def readDateOption(context: FileContext, offset: Int): Option[Date] = {
+  override def readResultEntry(context: FileContextIn): PersonData = {
+    def readDateOption(context: FileContextIn, offset: Int): Option[Date] = {
       val v = context.readLong(offset)
       if(v != 0) Some(new Date(v)) else None
     }
@@ -35,21 +35,18 @@ class DirectPersonResult extends DirectMappingResult[PersonData] {
     PersonData(noms, prenoms, gender, birthDate, birthPlace, deathDate, deathPlace)
   }
 
-  override def writeResultEntry(context: FileContext, entry: PersonData): FileContext = {
-    def writeDateOption(context: FileContext, offset: Int, dateOpt: Option[Date]): Unit = {
-      context.writeLong(offset, dateOpt.map(_.getTime).getOrElse(0))
+  override def writeResultEntry(context: FileContextOut, entry: PersonData): Unit = {
+    def writeDateOption(dateOpt: Option[Date]): Unit = {
+      context.writeLong(dateOpt.map(_.getTime).getOrElse(0))
     }
-    def writeIntOption(context: FileContext, offset: Int, option: Option[Int]): Unit = context.writeInt(offset, option.getOrElse(-1))
-    var ctx = context
-    ctx = ctx.writeString(0, entry.nom)
-    ctx = ctx.writeString(0, entry.prenom)
-    ctx.writeByte(0, if(entry.gender) 1 else 2)
-    writeDateOption(ctx, ByteSize, entry.birthDate)
-    ctx.writeInt(ByteSize + DateSize, entry.birthPlaceId)
-    writeDateOption(ctx, ByteSize + DateSize + IntSize, entry.deathDate)
-    ctx.writeInt(ByteSize + DateSize + IntSize + DateSize, entry.deathPlaceId)
-
-    ctx.reindex(ByteSize + 2 * (DateSize + IntSize))
+    def writeIntOption(context: FileContextOut, offset: Int, option: Option[Int]): Unit = context.writeInt(option.getOrElse(-1))
+    context.writeString(entry.nom)
+    context.writeString(entry.prenom)
+    context.writeByte(if(entry.gender) 1 else 2)
+    writeDateOption(entry.birthDate)
+    context.writeInt(entry.birthPlaceId)
+    writeDateOption(entry.deathDate)
+    context.writeInt(entry.deathPlaceId)
   }
 
 }

@@ -1,47 +1,48 @@
 package db
 
-import java.io.{BufferedOutputStream, DataOutputStream, File, FileOutputStream, RandomAccessFile}
+import java.io.{File, RandomAccessFile}
 import java.util.Date
 
 import data._
-import db.file.FileContext
-import db.file.writer.DataHandler
-import db.index.{ExactStringMachIndex, ExclusiveSubsetIndex, PointerBasedIndex, PrefixIndex, StringBasedIndex}
+import db.file.{FileContextIn, FileContextOut}
+import db.index._
 import db.result.{DirectPersonResult, DirectPlaceResult, LimitedReferenceResult, ReferenceResult}
 import db.util.StringUtils
+import db.util.StringUtils._
 import reader.{InseeNamesReader, InseePersonsReader, InseePlacesReader}
-import util.StringUtils._
 
 import scala.annotation.tailrec
-import scala.collection.{Seq, Set}
+import scala.collection.{Map, Seq}
 
 class InseeDatabase(root: File, readonly: Boolean = true) {
 
   require(root.isDirectory)
 
-  private def relativePath(filename: String): File = new File(root.getAbsolutePath + "/" + filename)
+  private def relative(filename: String): File = new File(root.getAbsolutePath + "/" + filename)
 
-  private def open(filename: String): FileContext = new FileContext(new RandomAccessFile(relativePath(filename), if (readonly) "r" else "rw"))
+  private def open(file: File): FileContextIn = new FileContextIn(new RandomAccessFile(file, if (readonly) "r" else "rw"))
 
 
   /* Files */
 
+  val (personsDataFile, placesDataFile, surnamesIndexFile, namesIndexFile, searchIndexFile, placesIndexFile) =
+    (relative("persons_data.db"), relative("places_data.db"), relative("surnames_index.db"), relative("names_index.db"), relative("search_index.db"), relative("places_index.db"))
+
   // Persons data (convert a person id to actual data)
-  private val personsDataFile: FileContext = open("persons_data.db")
+  private val personsDataFileIn: FileContextIn = open(personsDataFile)
 
   // Places data (convert a place id to actual data)
-  private val placesDataFile: FileContext = open("places_data.db")
+  private val placesDataFileIn: FileContextIn = open(placesDataFile)
 
   // Surnames and names index (convert a name to an id)
-  private val surnamesIndexFile: FileContext = open("surnames_index.db")
-  private val namesIndexFile: FileContext = open("names_index.db")
+  private val surnamesIndexFileIn: FileContextIn = open(surnamesIndexFile)
+  private val namesIndexFileIn: FileContextIn = open(namesIndexFile)
 
   // Search index (find person ids matching specific constraints)
-  private val searchIndexFile: FileContext = open("search_index.db")
+  private val searchIndexFileIn: FileContextIn = open(searchIndexFile)
 
   // Places index (convert a string prefix to a list of matching place ids)
-  private val placesIndexFile: FileContext = open("places_index.db")
-
+  private val placesIndexFileIn: FileContextIn = open(placesIndexFile)
 
   /* Indices */
 
@@ -82,11 +83,11 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   /* Query methods */
 
-  private def nameToId(name: String): Option[Int] = genericNameIndex.queryFirst(namesIndexFile, normalizeString(name))
+  private def nameToId(name: String): Option[Int] = genericNameIndex.queryFirst(namesIndexFileIn, normalizeString(name))
 
-  private def surnameToId(surname: String): Option[Int] = genericNameIndex.queryFirst(surnamesIndexFile, normalizeString(surname))
+  private def surnameToId(surname: String): Option[Int] = genericNameIndex.queryFirst(surnamesIndexFileIn, normalizeString(surname))
 
-  private def idToPerson(id: Int): Option[PersonData] = personsData.query(personsDataFile, id, 1, null).entries.headOption
+   def idToPerson(id: Int): Option[PersonData] = personsData.query(personsDataFileIn, id, 1, null).entries.headOption
 
   def idToPersonDisplay(id: Int): Option[PersonDisplay] = {
     idToPerson(id).map { p =>
@@ -94,7 +95,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     }
   }
 
-  private def idToPlace(id: Int): Option[PlaceData] = placesData.query(placesDataFile, id, 1, null).entries.headOption
+  private def idToPlace(id: Int): Option[PlaceData] = placesData.query(placesDataFileIn, id, 1, null).entries.headOption
 
   private def idToPlaces(id: Int): Option[Seq[(Int, PlaceData)]] = {
     idToPlace(id).map { place =>
@@ -163,7 +164,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
         val query = PersonQuery(surnames, names, place)
 
-        val result = searchIndex.query(searchIndexFile, offset, limit, query)
+        val result = searchIndex.query(searchIndexFileIn, offset, limit, query)
         result.copy(entries = result.entries.map(id => idToPersonDisplay(id).get))
       case _ => // A field contains a non existent key
         new ResultSet[PersonDisplay](Seq.empty, 0)
@@ -172,7 +173,14 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   def queryPlacesByPrefix(limit: Int, prefix: String): Seq[PlaceDisplay] = {
     val normalized = normalizeSentence(prefix)
-    placesIndex.query(placesIndexFile, 0, limit, normalized).entries.map(id => PlaceDisplay(id, idToPlaceDisplay(id).get))
+    placesIndex.query(placesIndexFileIn, 0, limit, normalized).entries.map(id => PlaceDisplay(id, idToPlaceDisplay(id).get))
+  }
+
+  private def write[P](level: DatabaseLevel[_, P, _], data: Map[Int, P], file: File): Unit = {
+    val context = new FileContextOut(file)
+    level.write(context, data)
+    print("Flushing... ")
+    context.close()
   }
 
   def generateDatabase(inseeCompiledFile: File, inseePlaceDirectory: File, inseeNamesFiles: File): Unit = {
@@ -226,7 +234,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     logEllipse("Writing places data")
 
-    placesData.write(placesDataFile, idPlaceMap) // Write place data
+    write(placesData, idPlaceMap, placesDataFile) // Write place data
 
     logOK()
 
@@ -279,7 +287,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     logEllipse("Writing places index")
 
-    placesIndex.write(placesIndexFile, idPlaceMap.keys.map(id => id -> (normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap))), placeOccurrences(id))).toMap)
+    write(placesIndex, idPlaceMap.keys.map(id => id -> (normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap))), placeOccurrences(id))).toMap, placesIndexFile)
 
     logOK()
 
@@ -302,13 +310,13 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     logEllipse("Writing surnames index")
 
-    genericNameIndex.write(surnamesIndexFile, nomsSorted.zipWithIndex.map(_.swap).toMap)
+    write(genericNameIndex, nomsSorted.zipWithIndex.map(_.swap).toMap, surnamesIndexFile)
 
     logOK()
 
     logEllipse("Writing names index")
 
-    genericNameIndex.write(namesIndexFile, prenomsSorted.zipWithIndex.map(_.swap).toMap)
+    write(genericNameIndex, prenomsSorted.zipWithIndex.map(_.swap).toMap, namesIndexFile)
 
     logOK()
 
@@ -317,7 +325,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     logEllipse("Writing persons data")
 
-    personsData.write(personsDataFile, personsDataMap)
+    write(personsData, personsDataMap, personsDataFile)
 
     logOK()
 
@@ -334,7 +342,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     logEllipse("Writing search index (this will take some time)")
 
-    searchIndex.write(searchIndexFile, searchValues)
+    write(searchIndex, searchValues, searchIndexFile)
 
     logOK()
 
@@ -344,11 +352,11 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
 
   def dispose(): Unit = {
-    personsDataFile.close()
-    placesDataFile.close()
-    surnamesIndexFile.close()
-    namesIndexFile.close()
-    searchIndexFile.close()
-    placesIndexFile.close()
+    personsDataFileIn.close()
+    placesDataFileIn.close()
+    surnamesIndexFileIn.close()
+    namesIndexFileIn.close()
+    searchIndexFileIn.close()
+    placesIndexFileIn.close()
   }
 }
