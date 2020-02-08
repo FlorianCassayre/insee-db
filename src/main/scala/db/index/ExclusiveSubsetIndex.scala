@@ -4,7 +4,7 @@ import scala.collection.Seq
 
 abstract class ExclusiveSubsetIndex[Q, P, R] extends AbstractFullTrieIndex[Q, P, R, Seq[Int]] {
 
-  val MaxCombinations = 9 // Estimated threshold: https://i.cassayre.me/20200207153022.png
+  val MaxCombinations = 16
 
   override def canonicalize(seq: Seq[Int]): Seq[Int] = seq.distinct.sorted
 
