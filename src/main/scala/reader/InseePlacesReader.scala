@@ -37,12 +37,27 @@ object InseePlacesReader {
       PlaceCountry(r.get(0), StringUtils.capitalizeFirstPerWord(r.get(5)), if(parent.nonEmpty) Some(parent) else None)
     }.toVector
 
+  def readCommunesEvents(file: File): Map[String, Seq[(String, String)]] = {
+    val map = csvReader(file).flatMap { r =>
+      val parent = r.get(9)
+      if(parent.length >= 5)
+        Seq(r.get(3) -> (r.get(7), parent))
+      else
+        Seq.empty
+    }.groupBy(_._1).view.mapValues(_.head._2).filter(t => t._1 != t._2._2).toMap
+    def upest(id: String): String = {
+      if(map.contains(id)) map(id)._2 else id
+    }
+    map.keySet.map(v => upest(v) -> (v, map(v)._1)).groupBy(_._1).view.mapValues(_.map(_._2).toSeq).toMap
+  }
 
-  def readPlaces(fileCommunes: File, fileDepartements: File, fileRegions: File, fileCountries: File): (PlaceTree, Map[String, String]) = {
+
+  def readPlaces(fileCommunes: File, fileDepartements: File, fileRegions: File, fileCountries: File, fileCommunesEvents: File): (PlaceTree, Map[String, String]) = {
     val (oldCommunes, communes) = readCommunes(fileCommunes)
     val departements = readDepartements(fileDepartements)
     val regions = readRegions(fileRegions)
     val countries = readCountries(fileCountries)
+    val communesEvents = readCommunesEvents(fileCommunesEvents)
 
     val France = "France"
 
@@ -53,10 +68,17 @@ object InseePlacesReader {
             departements.filter(_.regionId == r.regionId).map(d =>
               PlaceTree(None, d.name,
                 communes.filter(_.departementId == d.departementId).map(commune =>
-                  PlaceTree(Some(commune.inseeCode), commune.name,
-                    oldCommunes.filter(_.communeInseeCode == commune.inseeCode).map(old =>
+                  PlaceTree(Some(commune.inseeCode), commune.name, {
+                    val oldFound = oldCommunes.filter(_.communeInseeCode == commune.inseeCode)
+                    val oldSet = oldFound.map(_.inseeCode).toSet
+                    val old1 = oldFound.map(old =>
                       PlaceTree(Some(old.inseeCode), old.name, Set.empty)
                     ).toSet
+                    val old2 = communesEvents.getOrElse(commune.inseeCode, Seq.empty).filter(t => !oldSet.contains(t._1)).map(old =>
+                      PlaceTree(Some(old._1), old._2, Set.empty)
+                    )
+                    old1 ++ old2 // Dirty but mostly works
+                  }
                   )
                 ).toSet
               )
@@ -77,7 +99,7 @@ object InseePlacesReader {
     def sub(filename: String): File = new File(directory.getAbsolutePath + "/" + filename)
 
     // Note: this format is not standard (but convenient)
-    readPlaces(sub("communes.csv"), sub("departements.csv"), sub("regions.csv"), sub("pays.csv"))
+    readPlaces(sub("communes.csv"), sub("departements.csv"), sub("regions.csv"), sub("pays.csv"), sub("mouvements.csv"))
   }
 
 }
