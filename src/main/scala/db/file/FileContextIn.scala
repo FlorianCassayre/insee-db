@@ -12,22 +12,22 @@ class FileContextIn(file: RandomAccessFile, start: Long = 0) {
     file.seek(start + i)
   }
 
-  def readLong(i: Long): Long = {
+  def readLong(i: Long): Long = file.synchronized {
     seek(i)
     file.readLong()
   }
 
-  def readInt(i: Long): Int = {
+  def readInt(i: Long): Int = file.synchronized {
     seek(i)
     file.readInt()
   }
 
-  def readByte(i: Long): Int = {
+  def readByte(i: Long): Int = file.synchronized {
     seek(i)
     file.readByte()
   }
 
-  def readPointer(i: Long): Long = {
+  def readPointer(i: Long): Long = file.synchronized {
     seek(i)
     val high = file.readByte()
     val low = file.readInt()
