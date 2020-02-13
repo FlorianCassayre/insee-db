@@ -55,6 +55,18 @@ Le programme a été écrit en [Scala](https://fr.wikipedia.org/wiki/Scala_(lang
 Il utilise extensivement les lecteurs de fichiers à accès aléatoire.
 N'importe quel type de requête ne prendra que quelques millisecondes à être complété ce qui est très rapide.
 
+Le tableau suivant résume l'espace disque utilisé par chaque fichier pour les `24 811 645` lignes importés :
+
+| Fichier | Taille |
+|:---:|:---|
+| `search_index.db` | `17 201 830 719` (17,2 Go) |
+| `persons_data.db` | `1 348 397 973` (1,3 Go) |
+| `places_index.db` | `23 984 191` (24 Mo) |
+| `surnames_index.db` | `16 612 327` (16,6 Mo) |
+| `names_index.db` | `4 253 488` (4,2 Mo) |
+| `places_data.db` | `887 083` (0,9 Mo) |
+| **Total** | **`18 595 965 781`** (**18,6 Go**) |
+
 ## Limitations
 
 En pratique cette solution ne répond que partiellement à mon besoin.
