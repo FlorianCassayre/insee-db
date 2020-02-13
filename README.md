@@ -55,7 +55,7 @@ Le programme a été écrit en [Scala](https://fr.wikipedia.org/wiki/Scala_(lang
 Il utilise extensivement les lecteurs de fichiers à accès aléatoire.
 N'importe quel type de requête ne prendra que quelques millisecondes à être complété ce qui est très rapide.
 
-Le tableau suivant résume l'espace disque utilisé par chaque fichier pour les `24 811 645` lignes importés :
+Le tableau suivant résume l'espace disque utilisé par chaque fichier pour les `24 811 645` lignes importées :
 
 | Fichier | Taille |
 |:---:|:---|
@@ -77,4 +77,4 @@ En pratique cette solution ne répond que partiellement à mon besoin.
 Cette restriction n'est pas trop gênante dans la mesure où l'intérêt des recherches sans nom de famille est assez limité (même si nécessaires dans certains cas).
 
 - Enfin, l'écriture de la base de données prend du temps et nécessite d'avoir beaucoup de mémoire vive à disposition.
-Il est possible d'augmenter la taille de la pile de la JVM au-delà de ce que la mémoire vive peu offrir, mais avec pour conséquence un temps de calcul accru.
+Il est possible d'augmenter la taille de la pile de la JVM au-delà de ce que la mémoire vive peut offrir, mais avec pour conséquence un temps de calcul accru.
