@@ -106,7 +106,7 @@ object MainWebserver extends App with SprayJsonSupport with DefaultJsonProtocol 
       },
       path("persons") {
         parameters("surname".as[String], "name" ? "", "place".as[Int] ? 0, "offset".as[Int] ? 0, "limit".as[Int] ? 10) { (surname, name, place, offset, limit) =>
-          val limitMax = 50
+          val limitMax = 100
           validatePositiveBounded("offset", offset, Int.MaxValue - limitMax) {
             validatePositiveBounded("limit", limit, limitMax) {
               validateNonEmpty("surname", surname) {
