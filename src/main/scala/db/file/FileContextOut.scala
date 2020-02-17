@@ -22,6 +22,11 @@ class FileContextOut(file: File) {
     positionMain += ByteSize
   }
 
+  def writeShort(s: Int): Unit = {
+    outMain.writeShort(s)
+    positionMain += ShortSize
+  }
+
   def writeInt(i: Int): Unit = {
     outMain.writeInt(i)
     positionMain += IntSize

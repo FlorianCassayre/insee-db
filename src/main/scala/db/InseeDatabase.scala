@@ -4,9 +4,10 @@ import java.io.{File, RandomAccessFile}
 import java.util.Date
 
 import data._
+import db.file.writer.{DataHandler, IntHandler, ShortHandler, ThreeBytesHandler}
 import db.file.{FileContextIn, FileContextOut}
 import db.index._
-import db.result.{DirectPersonResult, DirectPlaceResult, LimitedReferenceResult, ReferenceResult}
+import db.result._
 import db.util.StringUtils
 import db.util.StringUtils._
 import reader.{InseeNamesReader, InseePersonsReader, InseePlacesReader}
@@ -25,8 +26,8 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   /* Files */
 
-  val (personsDataFile, placesDataFile, surnamesIndexFile, namesIndexFile, searchIndexFile, placesIndexFile) =
-    (relative("persons_data.db"), relative("places_data.db"), relative("surnames_index.db"), relative("names_index.db"), relative("search_index.db"), relative("places_index.db"))
+  val (personsDataFile, placesDataFile, surnamesIndexFile, namesIndexFile, searchIndexFile, placesIndexFile, datesDataFile) =
+    (relative("persons_data.db"), relative("places_data.db"), relative("surnames_index.db"), relative("names_index.db"), relative("search_index.db"), relative("places_index.db"), relative("dates_data.db"))
 
   // Persons data (convert a person id to actual data)
   private val personsDataFileIn: FileContextIn = open(personsDataFile)
@@ -44,6 +45,9 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
   // Places index (convert a string prefix to a list of matching place ids)
   private val placesIndexFileIn: FileContextIn = open(placesIndexFile)
 
+  // Dates represented as years for fast lookup
+  private val datesDataFileIn: FileContextIn = open(datesDataFile)
+
   /* Indices */
 
   private val personsData = new DirectPersonResult()
@@ -57,17 +61,30 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   private val searchIndex: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
     override val ignoreRoot: Boolean = true
+    override val keyHandler: DataHandler = new ThreeBytesHandler()
     override def getQueryParameter(q: PersonQuery): Seq[Int] = q.nomsIds
     override def getWriteParameter(q: PersonProcessed): Seq[Int] = q.noms
     override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] =
       new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
+        override val keyHandler: DataHandler = new ThreeBytesHandler()
         override def getQueryParameter(q: PersonQuery): Seq[Int] = q.prenomsIds
         override def getWriteParameter(q: PersonProcessed): Seq[Int] = q.prenoms
         override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new PrefixIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
+          override val keyHandler: DataHandler = new ShortHandler()
           override def getQueryParameter(q: PersonQuery): Seq[Seq[Int]] = Seq(q.placeIds)
           override def getWriteParameter(q: PersonProcessed): Seq[Seq[Int]] = Seq(q.birthPlaceIds, q.deathPlaceIds).toSet.toSeq
-          override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new ReferenceResult()
-          // TODO complete this
+          override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new ReferenceResult[PersonQuery, PersonProcessed]() {
+            override val OrdersCount: Int = 2
+            override def ordering(i: Int)(id: Int, value: PersonProcessed): Long = i match {
+              case 0 => value.birthDate.map(_.getTime).getOrElse(Long.MaxValue) // Birth date
+              case 1 => value.deathDate.map(_.getTime).getOrElse(Long.MaxValue) // Death date
+            }
+            override def getOrder(q: PersonQuery): Int = if(q.filterByBirth) 0 else 1
+            override def orderTransformer(i: Int)(id: Int): Int = idToDate(id, i).get
+            override def lowerBound(i: Int)(value: PersonQuery): Option[Int] = value.yearMin // i is unused here
+            override def upperBound(i: Int)(value: PersonQuery): Option[Int] = value.yearMax
+            override def isAscending(i: Int)(value: PersonQuery): Boolean = value.ascending
+          }
         }
       }
   }
@@ -77,9 +94,13 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     override def getWriteParameter(q: (String, Int)): Seq[Seq[Int]] = getQueryParameter(q._1)
     override val child: DatabaseLevel[String, (String, Int), ResultSet[Int]] = new LimitedReferenceResult[String, (String, Int)]() {
       override val MaxResults: Int = 25
-      override def ordering(id: Int, p: (String, Int)): Int = -p._2
+      override def ordering(i: Int)(id: Int, p: (String, Int)): Long = i match {
+        case 0 => -p._2
+      }
     }
   }
+
+  private val datesData: DirectDateResult = new DirectDateResult()
 
   /* Query methods */
 
@@ -87,7 +108,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   private def surnameToId(surname: String): Option[Int] = genericNameIndex.queryFirst(surnamesIndexFileIn, normalizeString(surname))
 
-   def idToPerson(id: Int): Option[PersonData] = personsData.query(personsDataFileIn, id, 1, null).entries.headOption
+  def idToPerson(id: Int): Option[PersonData] = personsData.query(personsDataFileIn, id, 1, null).entries.headOption
 
   def idToPersonDisplay(id: Int): Option[PersonDisplay] = {
     idToPerson(id).map { p =>
@@ -116,7 +137,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   private def idToAbsolutePlace(id: Int): Option[Seq[Int]] = idToPlaces(id).map(_.map(_._1))
 
-  private def idToPlaceDisplay(id: Int): Option[String] = { // TODO change signature
+  private def idToPlaceDisplay(id: Int): Option[String] = {
     idToPlaces(id).map(d => placeDisplay(d.map(_._2)))
   }
 
@@ -133,14 +154,16 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     }
   }
 
-  // TODO missing methods
+  private def idToDate(id: Int, kind: Int): Option[Int] = datesData.query(datesDataFileIn, 0, 1, (kind, id))
 
   def queryPersons(offset: Int, limit: Int,
                    surname: Option[String] = None,
                    name: Option[String] = None,
                    placeId: Option[Int] = None,
-                   birthAfter: Option[Date] = None, birthBefore: Option[Date] = None,
-                   deathAfter: Option[Date] = None, deathBefore: Option[Date] = None): ResultSet[PersonDisplay] = {
+                   filterByBirth: Boolean = true,
+                   after: Option[Int] = None, before: Option[Int] = None,
+                   ascending: Boolean = true
+                  ): ResultSet[PersonDisplay] = {
     require(limit >= 0 && offset >= 0)
 
     def processName(name: Option[String], translation: String => Option[Int]): Option[Seq[Int]] = {
@@ -157,14 +180,13 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
       case other => Some(other.flatten.getOrElse(Seq(0))) // `0` is the root place
     }
 
-    // TODO date parameters
-
     (surnamesOpt, namesOpt, placeOpt) match {
       case (Some(surnames), Some(names), Some(place)) =>
 
-        val query = PersonQuery(surnames, names, place)
+        val query = PersonQuery(surnames, names, place, filterByBirth = filterByBirth, ascending = ascending, after.map(_ - datesData.BaseYear), before.map(_ - datesData.BaseYear))
 
         val result = searchIndex.query(searchIndexFileIn, offset, limit, query)
+
         result.copy(entries = result.entries.map(id => idToPersonDisplay(id).get))
       case _ => // A field contains a non existent key
         new ResultSet[PersonDisplay](Seq.empty, 0)
@@ -246,16 +268,24 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     logEllipse("Iterating through dataset")
 
-    val iterator = InseePersonsReader.readCompiledFile(inseeCompiledFile).filter(InseePersonsReader.isReasonable)
-      .take(1000) // TODO temporary
+    def getIterator(): Iterable[PersonRaw] = InseePersonsReader.readCompiledFile(inseeCompiledFile).filter(InseePersonsReader.isReasonable)
+      .take(1000000)
+
+    def getPlace(code: String): Int = inseeCodePlaceMap.getOrElse(countryTranslation.getOrElse(code, code), 0)
 
     val stopRegex = "[^a-z]+".r
     var (nomsSet, prenomsSet) = (mutable.HashSet.empty[String], mutable.HashSet.empty[String])
     var personsDataMap = mutable.Map.empty[Int, PersonData]
     var placeOccurrences = mutable.Seq.fill(idPlaceMap.size)(0)
     var count = 0
-    iterator.foreach { p =>
+    getIterator().foreach { p =>
       val id = count
+
+      if(id % 400000 == 0) {
+        println(id)
+        System.gc()
+      }
+
       val prenomNormal = normalizeString(p.prenom)
       val stop = stopRegex.findAllIn(prenomNormal).toSeq
       val split = stopRegex.split(prenomNormal)
@@ -265,7 +295,6 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
         else
           StringUtils.capitalizeFirstPerWord(prenomNormal)
 
-      def getPlace(code: String): Int = inseeCodePlaceMap.getOrElse(countryTranslation.getOrElse(code, code), 0)
 
       nomsSet.addAll(cleanSplitAndNormalize(p.nom))
       prenomsSet.addAll(cleanSplitAndNormalize(p.prenom))
@@ -282,8 +311,6 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     logOK()
 
     namesAccent = null
-    inseeCodePlaceMap = null
-    countryTranslation = null
 
     logEllipse("Writing places index")
 
@@ -323,19 +350,47 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     nomsSorted = null
     prenomsSorted = null
 
+    logEllipse("Writing dates data")
+
+    write(datesData, personsDataMap, datesDataFile)
+
+    logOK()
+
     logEllipse("Writing persons data")
 
     write(personsData, personsDataMap, personsDataFile)
 
     logOK()
 
+    personsDataMap = null
+
+    System.gc() // TODO
+
+    val total = count
+
     logEllipse("Building search data")
 
-    val searchValues = personsDataMap.view.mapValues(p => PersonProcessed(cleanSplitAndNormalize(p.nom).map(nomsMap), cleanSplitAndNormalize(p.prenom).map(prenomsMap), p.gender, p.birthDate, placeAbsolute(p.birthPlaceId), p.deathDate, placeAbsolute(p.deathPlaceId))).toMap
+    var searchValues: mutable.Map[Int, PersonProcessed] = mutable.Map.empty
+
+    count = 0
+    getIterator().foreach { p =>
+      val id = count
+
+      if(id % 400000 == 0) {
+        println(id)
+        System.gc()
+      }
+
+      val (birthPlace, deathPlace) = (getPlace(p.birthCode), getPlace(p.deathCode))
+      val processed = PersonProcessed(cleanSplitAndNormalize(p.nom).map(nomsMap).toArray, cleanSplitAndNormalize(p.prenom).map(prenomsMap).toArray, p.gender, p.birthDate, placeAbsolute(birthPlace), p.deathDate, placeAbsolute(deathPlace))
+      searchValues.put(id, processed)
+      count += 1
+    }
 
     logOK()
 
-    personsDataMap = null
+    countryTranslation = null
+    inseeCodePlaceMap = null
     nomsMap = null
     prenomsMap = null
     idPlaceMap = null

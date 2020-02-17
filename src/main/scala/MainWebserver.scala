@@ -110,7 +110,7 @@ object MainWebserver extends App with SprayJsonSupport with DefaultJsonProtocol 
           validatePositiveBounded("offset", offset, Int.MaxValue - limitMax) {
             validatePositiveBounded("limit", limit, limitMax) {
               validateNonEmpty("surname", surname) {
-                val result = db.queryPersons(offset, limit, Some(surname), Some(name), Some(place), None, None, None, None)
+                val result = db.queryPersons(offset, limit, Some(surname), Some(name), Some(place)) // TODO important: update query parameters
 
                 val successResponse = PersonsResponse(OK.intValue, result.total, result.entries)
                 cors.corsHandler(complete(successResponse.code, successResponse))

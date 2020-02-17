@@ -19,7 +19,7 @@ package object data {
   case class PersonDisplay(nom: String, prenom: String, gender: Boolean, birthDate: Option[Date], birthPlace: Option[String], deathDate: Option[Date], deathPlace: Option[String])
 
 
-  case class PersonQuery(nomsIds: Seq[Int], prenomsIds: Seq[Int], placeIds: Seq[Int]) // TODO add dates
+  case class PersonQuery(nomsIds: Seq[Int], prenomsIds: Seq[Int], placeIds: Seq[Int], filterByBirth: Boolean, ascending: Boolean, yearMin: Option[Int], yearMax: Option[Int])
 
 
   /* Places */

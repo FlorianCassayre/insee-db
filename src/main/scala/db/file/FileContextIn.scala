@@ -22,6 +22,11 @@ class FileContextIn(file: RandomAccessFile, start: Long = 0) {
     file.readInt()
   }
 
+  def readShort(i: Long): Int = file.synchronized {
+    seek(i)
+    file.readShort()
+  }
+
   def readByte(i: Long): Int = file.synchronized {
     seek(i)
     file.readByte()

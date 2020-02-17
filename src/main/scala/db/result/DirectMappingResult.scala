@@ -8,7 +8,7 @@ import collection._
 
 abstract class DirectMappingResult[Q] extends LevelResult[Q, Q, ResultSet[Q]] {
 
-  override private[db] def readResult(context: FileContextIn, offset: Int, limit: Int): ResultSet[Q] = {
+  override def query(context: FileContextIn, offset: Int, limit: Int, parameters: Q): ResultSet[Q] = {
     val count = context.readInt(0)
     val end = Math.min(offset + limit, count)
     val pointers = (offset until end).map(i => context.readPointer(IntSize + i * PointerSize))
