@@ -26,7 +26,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   /* Files */
 
-  val (personsDataFile, placesDataFile, surnamesIndexFile, namesIndexFile, searchIndexFile, placesIndexFile, datesDataFile) =
+  private val (personsDataFile, placesDataFile, surnamesIndexFile, namesIndexFile, searchIndexFile, placesIndexFile, datesDataFile) =
     (relative("persons_data.db"), relative("places_data.db"), relative("surnames_index.db"), relative("names_index.db"), relative("search_index.db"), relative("places_index.db"), relative("dates_data.db"))
 
   // Persons data (convert a person id to actual data)
@@ -108,9 +108,9 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   private def surnameToId(surname: String): Option[Int] = genericNameIndex.queryFirst(surnamesIndexFileIn, normalizeString(surname))
 
-  def idToPerson(id: Int): Option[PersonData] = personsData.query(personsDataFileIn, id, 1, null).entries.headOption
+  private def idToPerson(id: Int): Option[PersonData] = personsData.query(personsDataFileIn, id, 1, null).entries.headOption
 
-  def idToPersonDisplay(id: Int): Option[PersonDisplay] = {
+  private def idToPersonDisplay(id: Int): Option[PersonDisplay] = {
     idToPerson(id).map { p =>
       PersonDisplay(p.nom, p.prenom, p.gender, p.birthDate, idToPlaceDisplay(p.birthPlaceId), p.deathDate, idToPlaceDisplay(p.deathPlaceId))
     }
