@@ -16,6 +16,7 @@ object StringUtils {
   def cleanSplitAndNormalize(str: String): IndexedSeq[String] = cleanSplit(normalizeString(str))
 
   // https://stackoverflow.com/a/48494552/4413709
-  def capitalizeFirstPerWord(str: String): String = raw"\b((?<!\b')\w+)".r.replaceAllIn(str.toLowerCase, _.group(1).capitalize)
+  // https://stackoverflow.com/a/26900132/4413709
+  def capitalizeFirstPerWord(str: String): String = raw"\b((?<!\b')[A-Za-zÀ-ÖØ-öø-ÿ]+)".r.replaceAllIn(str.toLowerCase, _.group(1).capitalize)
 
 }
