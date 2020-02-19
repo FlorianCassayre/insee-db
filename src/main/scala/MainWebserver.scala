@@ -87,7 +87,11 @@ object MainWebserver extends App with SprayJsonSupport with DefaultJsonProtocol 
   }
 
   def validatePositiveBounded(parameter: String, n: Int, upperBound: Int): Directive0 = {
-    validateNonNegative(parameter, n) & (validateNotGreater(parameter, n, upperBound))
+    validateNonNegative(parameter, n) & validateNotGreater(parameter, n, upperBound)
+  }
+
+  def validateConvert[T](parameter: String, value: String, option: Option[T]): Directive0 = {
+    validate(option.nonEmpty, s"Unrecognized value '$value' for parameter '$parameter'.")
   }
 
   val route =
@@ -105,18 +109,35 @@ object MainWebserver extends App with SprayJsonSupport with DefaultJsonProtocol 
         }
       },
       path("persons") {
-        parameters("surname".as[String], "name" ? "", "place".as[Int] ? 0, "offset".as[Int] ? 0, "limit".as[Int] ? 10) { (surname, name, place, offset, limit) =>
-          val limitMax = 100
-          validatePositiveBounded("offset", offset, Int.MaxValue - limitMax) {
-            validatePositiveBounded("limit", limit, limitMax) {
-              validateNonEmpty("surname", surname) {
-                val result = db.queryPersons(offset, limit, Some(surname), Some(name), Some(place)) // TODO important: update query parameters
+        // TODO change these to proper unmarshallers
+        val (keyEventBirth, keyEventDeath) = ("birth", "death")
+        def convertEvent(str: String): Option[Boolean] = str match {
+          case `keyEventBirth` => Some(true)
+          case `keyEventDeath` => Some(false)
+          case _ => None
+        }
+        val (keyOrderAscending, keyOrderDescending) = ("ascending", "descending")
+        def convertOrdering(str: String): Option[Boolean] = str match {
+          case `keyOrderAscending` => Some(true)
+          case `keyOrderDescending` => Some(false)
+          case _ => None
+        }
+        parameters("surname".as[String], "name".as[String] ? "", "place".as[Int] ? 0, "offset".as[Int] ? 0, "limit".as[Int] ? 10,
+          "event".as[String] ? keyEventBirth, "after".as[Int].?, "before".as[Int].?, "order".as[String] ? keyOrderAscending) {
+          (surname, name, place, offset, limit, event, after, before, order) =>
+            val limitMax = 100
+            val eventOpt = convertEvent(event)
+            val orderOpt = convertOrdering(order)
+            (validatePositiveBounded("offset", offset, Int.MaxValue - limitMax) & validatePositiveBounded("limit", limit, limitMax) & validateNonEmpty("surname", surname) & validateConvert("event", event, eventOpt) & validateConvert("order", order, orderOpt)) {
+              val (yearMin, yearMax) = (1850, 2019) // TODO refactor this
+              def clamp(year: Int): Int = Math.min(Math.max(year, yearMin), yearMax)
+              val (realAfter, realBefore) = (after.map(clamp), before.map(clamp))
 
-                val successResponse = PersonsResponse(OK.intValue, result.total, result.entries)
-                cors.corsHandler(complete(successResponse.code, successResponse))
-              }
+              val result = db.queryPersons(offset, limit, Some(surname), Some(name), Some(place), filterByBirth = eventOpt.get, realAfter, realBefore, ascending = orderOpt.get)
+
+              val successResponse = PersonsResponse(OK.intValue, result.total, result.entries)
+              cors.corsHandler(complete(successResponse.code, successResponse))
             }
-          }
         }
       }
     )
