@@ -10,7 +10,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream.ActorMaterializer
 import data.{PersonDisplay, PlaceDisplay}
-import db.InseeDatabase
+import db.{InseeDatabase, ParallelInseeDatabase}
 import spray.json._
 import web.CORSHandler
 
@@ -20,7 +20,7 @@ import scala.io.StdIn
 
 object MainWebserver extends App with SprayJsonSupport with DefaultJsonProtocol {
 
-  val db = new InseeDatabase(new File(args(0)))
+  val db = new ParallelInseeDatabase(new File(args(0)))
 
   implicit val system: ActorSystem = ActorSystem()
   implicit val materializer: ActorMaterializer = ActorMaterializer()

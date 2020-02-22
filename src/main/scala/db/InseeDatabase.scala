@@ -102,15 +102,17 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   private val datesData: DirectDateResult = new DirectDateResult()
 
+  val BaseYear: Int = datesData.BaseYear // TODO move this
+
   /* Query methods */
 
-  private def nameToId(name: String): Option[Int] = genericNameIndex.queryFirst(namesIndexFileIn, normalizeString(name))
+  def nameToId(name: String): Option[Int] = genericNameIndex.queryFirst(namesIndexFileIn, normalizeString(name))
 
-  private def surnameToId(surname: String): Option[Int] = genericNameIndex.queryFirst(surnamesIndexFileIn, normalizeString(surname))
+  def surnameToId(surname: String): Option[Int] = genericNameIndex.queryFirst(surnamesIndexFileIn, normalizeString(surname))
 
   private def idToPerson(id: Int): Option[PersonData] = personsData.query(personsDataFileIn, id, 1, null).entries.headOption
 
-  private def idToPersonDisplay(id: Int): Option[PersonDisplay] = {
+  def idToPersonDisplay(id: Int): Option[PersonDisplay] = {
     idToPerson(id).map { p =>
       PersonDisplay(p.nom, p.prenom, p.gender, p.birthDate, idToPlaceDisplay(p.birthPlaceId), p.deathDate, idToPlaceDisplay(p.deathPlaceId))
     }
@@ -135,7 +137,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     }
   }
 
-  private def idToAbsolutePlace(id: Int): Option[Seq[Int]] = idToPlaces(id).map(_.map(_._1))
+  def idToAbsolutePlace(id: Int): Option[Seq[Int]] = idToPlaces(id).map(_.map(_._1))
 
   private def idToPlaceDisplay(id: Int): Option[String] = {
     idToPlaces(id).map(d => placeDisplay(d.map(_._2)))
@@ -155,6 +157,8 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
   }
 
   private def idToDate(id: Int, kind: Int): Option[Int] = datesData.query(datesDataFileIn, 0, 1, (kind, id))
+
+  def queryPersonsId(offset: Int, limit: Int, parameters: PersonQuery): ResultSet[Int] = searchIndex.query(searchIndexFileIn, offset, limit, parameters)
 
   def queryPersons(offset: Int, limit: Int,
                    surname: Option[String] = None,
