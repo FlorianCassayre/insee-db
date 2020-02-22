@@ -1,19 +1,20 @@
 package db
 
 import java.io.File
+import java.util.concurrent.Executors
 
 import data.{PersonDisplay, PersonQuery, PlaceDisplay}
 import db.util.StringUtils
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
 import scala.concurrent.duration.Duration
-
 import scala.collection.Seq
 
 class ParallelInseeDatabase(root: File) {
 
   private val InstancesCount = 50
+
+  implicit val ec: ExecutionContextExecutor = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(InstancesCount))
 
   private val instances = IndexedSeq.fill(InstancesCount)(new InseeDatabase(root))
 
