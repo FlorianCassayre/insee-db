@@ -4,7 +4,7 @@ import db.InseeDatabase
 
 object MainWrite extends App {
 
-  require(args.length == 4, "Arguments: <output directory> <insee compiled file> <places directory> <names file>")
+  require(args.length == 4, "Arguments: <output directory> <insee official files directory> <places directory> <names file>")
 
   val db = new InseeDatabase(new File(args(0)), readonly = false)
 

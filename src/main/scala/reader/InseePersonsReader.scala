@@ -1,7 +1,7 @@
 package reader
 
 import java.io.{BufferedReader, File, FileInputStream, InputStreamReader}
-import java.text.SimpleDateFormat
+import java.text.{DateFormat, SimpleDateFormat}
 import java.util.zip.GZIPInputStream
 import java.util.{Calendar, Date}
 
@@ -24,18 +24,53 @@ object InseePersonsReader {
 
     val dateFormat = new SimpleDateFormat("yyyy-MM-dd")
 
-    def parseGender(str: String): Boolean = str match {
-      case "1" => true
-      case "2" => false
-    }
-
-    def parseDate(str: String): Option[Date] = Try(dateFormat.parse(str)).toOption
-
     // `view` is required to preserve the iterator
     iterator.asScala.view.map { r =>
-      PersonRaw(r.get(0).toUpperCase, StringUtils.capitalizeFirstPerWord(r.get(1)), parseGender(r.get(2)), parseDate(r.get(3)), r.get(4), parseDate(r.get(7)), r.get(8))
+      PersonRaw(
+        r.get(0).toUpperCase,
+        StringUtils.capitalizeFirstPerWord(r.get(1)),
+        parseGender(r.get(2)),
+        parseDate(dateFormat, r.get(3)),
+        r.get(4),
+        parseDate(dateFormat, r.get(7)),
+        r.get(8)
+      )
     }
   }
+
+  def readOfficialYearlyFile(file: File): Iterable[PersonRaw] = {
+    val iterator = CSVFormat.DEFAULT.withFirstRecordAsHeader().withDelimiter(';').parse(new BufferedReader(new InputStreamReader(new FileInputStream(file))))
+
+    val dateFormat = new SimpleDateFormat("yyyyMMdd")
+
+    iterator.asScala.view.map { r =>
+      val namesEntry = r.get(0)
+      val split = namesEntry.split("\\*")
+      val (surname, nameSlash) = split match {
+        case Array(a, b) => (a, b)
+        case Array(a) => (a, "")
+      }
+      val endsWithSlash = nameSlash.nonEmpty && nameSlash.last == '/'
+      val name = if(endsWithSlash) nameSlash.substring(0, nameSlash.length - 1) else nameSlash
+
+      PersonRaw(
+        surname.toUpperCase,
+        StringUtils.capitalizeFirstPerWord(name),
+        parseGender(r.get(1)),
+        parseDate(dateFormat, r.get(2)),
+        r.get(3),
+        parseDate(dateFormat, r.get(6)),
+        r.get(7)
+      )
+    }
+  }
+
+  private def parseGender(str: String): Boolean = str match {
+    case "1" => true
+    case "2" => false
+  }
+
+  private def parseDate(dateFormat: DateFormat, str: String): Option[Date] = Try(dateFormat.parse(str)).toOption
 
   /**
    * A rough filter to detect outliers.
@@ -46,8 +81,8 @@ object InseePersonsReader {
   def isReasonable(person: PersonRaw): Boolean = {
     val AgeMax = 125
     val YearBirthMin = 1850
-    val YearBirthMax = 2019
-    val YearDeathMax = 2019
+    val YearBirthMax = 2020
+    val YearDeathMax = 2020
 
     def isReasonableName(string: String): Boolean = string.forall(!_.isDigit)
     def getYear(date: Date): Int = {

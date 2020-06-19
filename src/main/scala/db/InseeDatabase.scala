@@ -139,7 +139,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   def idToAbsolutePlace(id: Int): Option[Seq[Int]] = idToPlaces(id).map(_.map(_._1))
 
-  private def idToPlaceDisplay(id: Int): Option[String] = {
+  def idToPlaceDisplay(id: Int): Option[String] = {
     idToPlaces(id).map(d => placeDisplay(d.map(_._2)))
   }
 
@@ -210,7 +210,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     context.close()
   }
 
-  def generateDatabase(inseeCompiledFile: File, inseePlaceDirectory: File, inseeNamesFiles: File): Unit = {
+  def generateDatabase(inseeOfficialFilesDirectory: File, inseePlaceDirectory: File, inseeNamesFiles: File): Unit = {
     import scala.collection._
 
     val t0 = System.currentTimeMillis()
@@ -273,8 +273,11 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
     logEllipse("Iterating through dataset")
 
-    def getIterator(): Iterable[PersonRaw] = InseePersonsReader.readCompiledFile(inseeCompiledFile).filter(InseePersonsReader.isReasonable)
-      .take(1000000)
+    def getIterator(): Iterable[PersonRaw] =
+      inseeOfficialFilesDirectory.listFiles().view
+        .flatMap(InseePersonsReader.readOfficialYearlyFile)
+        .filter(InseePersonsReader.isReasonable)
+        //.take(1_000)
 
     def getPlace(code: String): Int = inseeCodePlaceMap.getOrElse(countryTranslation.getOrElse(code, code), 0)
 
