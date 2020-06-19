@@ -1,19 +1,17 @@
 package db.result
 
-import java.util.{Calendar, Date}
+import java.time.LocalDate
 
 import data.PersonData
+import db.LevelResult
 import db.file.{FileContextIn, FileContextOut}
-import db.{LevelResult, ResultSet}
+import db.util.DatabaseUtils.{ByteSize, IntSize}
 
 import scala.collection.Map
-import db.util.DatabaseUtils.{ByteSize, IntSize}
 
 class DirectDateResult extends LevelResult[(Int, Int), PersonData, Option[Int]] {
 
   val BaseYear = 1850
-
-  private val calendar = Calendar.getInstance()
 
   override def query(context: FileContextIn, offset: Int, limit: Int, parameters: (Int, Int)): Option[Int] = {
     val (dateType, id) = parameters
@@ -30,9 +28,8 @@ class DirectDateResult extends LevelResult[(Int, Int), PersonData, Option[Int]] 
   override private[db] def empty: Option[Int] = None
 
   override def write(context: FileContextOut, data: Map[Int, PersonData]): Unit = {
-    def dateToByte(date: Date): Int = {
-      calendar.setTime(date)
-      calendar.get(Calendar.YEAR) - BaseYear
+    def dateToByte(date: LocalDate): Int = {
+      date.getYear - BaseYear
     }
 
     val seq = data.keys.toSeq.sorted

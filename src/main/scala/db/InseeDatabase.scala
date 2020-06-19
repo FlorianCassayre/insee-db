@@ -1,15 +1,14 @@
 package db
 
 import java.io.{File, RandomAccessFile}
-import java.util.Date
 
 import data._
-import db.file.writer.{DataHandler, IntHandler, ShortHandler, ThreeBytesHandler}
+import db.file.writer.{DataHandler, ShortHandler, ThreeBytesHandler}
 import db.file.{FileContextIn, FileContextOut}
 import db.index._
 import db.result._
-import db.util.StringUtils
 import db.util.StringUtils._
+import db.util.{DateUtils, StringUtils}
 import reader.{InseeNamesReader, InseePersonsReader, InseePlacesReader}
 
 import scala.annotation.tailrec
@@ -76,8 +75,8 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
           override val child: DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]] = new ReferenceResult[PersonQuery, PersonProcessed]() {
             override val OrdersCount: Int = 2
             override def ordering(i: Int)(id: Int, value: PersonProcessed): Long = i match {
-              case 0 => value.birthDate.map(_.getTime).getOrElse(Long.MaxValue) // Birth date
-              case 1 => value.deathDate.map(_.getTime).getOrElse(Long.MaxValue) // Death date
+              case 0 => value.birthDate.map(DateUtils.toMillis).getOrElse(Long.MaxValue) // Birth date
+              case 1 => value.deathDate.map(DateUtils.toMillis).getOrElse(Long.MaxValue) // Death date
             }
             override def getOrder(q: PersonQuery): Int = if(q.filterByBirth) 0 else 1
             override def orderTransformer(i: Int)(id: Int): Int = idToDate(id, i).get

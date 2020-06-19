@@ -1,6 +1,6 @@
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -10,7 +10,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream.ActorMaterializer
 import data.{PersonDisplay, PlaceDisplay}
-import db.{InseeDatabase, ParallelInseeDatabase}
+import db.ParallelInseeDatabase
 import spray.json._
 import web.CORSHandler
 
@@ -43,11 +43,11 @@ object MainWebserver extends App with SprayJsonSupport with DefaultJsonProtocol 
   implicit val personsFormat: RootJsonFormat[PersonDisplay] = jsonFormat7(PersonDisplay)
   implicit val personsResponseFormat: RootJsonFormat[PersonsResponse] = jsonFormat3(PersonsResponse)
 
-  implicit def dateJsonConvertor: JsonFormat[Date] = new JsonFormat[Date] {
-    private val simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd")
+  implicit def dateJsonConvertor: JsonFormat[LocalDate] = new JsonFormat[LocalDate] {
+    private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-    override def read(json: JsValue): Date = throw new SerializationException("Not intended to be read")
-    override def write(obj: Date): JsValue = JsString(simpleDateFormat.format(obj))
+    override def read(json: JsValue): LocalDate = throw new SerializationException("Not intended to be read")
+    override def write(obj: LocalDate): JsValue = JsString(obj.format(formatter))
   }
 
 

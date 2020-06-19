@@ -1,7 +1,7 @@
 package util
 
-import java.text.SimpleDateFormat
-import java.util.Date
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 import data.PersonDisplay
 
@@ -11,10 +11,10 @@ object CliUtils {
 
   val PersonFieldsHeader: Seq[String] = Seq("Nom", "Prénom", "Sexe", "Date naissance", "Lieu naissance", "Date décès", "Lieu décès")
 
-  private val simpleDateFormat = new SimpleDateFormat("dd/MM/yyyy")
+  private val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 
   def personToFields(person: PersonDisplay): Seq[String] = {
-    def dateToString(date: Option[Date]): String = date.map(simpleDateFormat.format).getOrElse("")
+    def dateToString(date: Option[LocalDate]): String = date.map(formatter.format).getOrElse("")
     def placeToString(place: Option[String]): String = place.getOrElse("")
     Seq(person.nom, person.prenom, if(person.gender) "M" else "F", dateToString(person.birthDate), placeToString(person.birthPlace), dateToString(person.deathDate), placeToString(person.deathPlace))
   }

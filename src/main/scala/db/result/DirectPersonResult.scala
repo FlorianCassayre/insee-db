@@ -1,19 +1,21 @@
 package db.result
 
-import java.util.Date
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 import data.PersonData
 import db.file.{FileContextIn, FileContextOut}
 import db.util.DatabaseUtils._
+import db.util.DateUtils
 
 class DirectPersonResult extends DirectMappingResult[PersonData] {
 
   private val DateSize = LongSize // TODO reduce date memory footprint (can be represented in <8 bytes)
 
   override def readResultEntry(context: FileContextIn): PersonData = {
-    def readDateOption(context: FileContextIn, offset: Int): Option[Date] = {
+    def readDateOption(context: FileContextIn, offset: Int): Option[LocalDate] = {
       val v = context.readLong(offset)
-      if(v != 0) Some(new Date(v)) else None
+      if(v != 0) Some(DateUtils.fromMillis(v)) else None
     }
     var ctx = context
     val noms = {
@@ -35,9 +37,11 @@ class DirectPersonResult extends DirectMappingResult[PersonData] {
     PersonData(noms, prenoms, gender, birthDate, birthPlace, deathDate, deathPlace)
   }
 
+  private val dtf = DateTimeFormatter.ofPattern("MM/dd/yyyy");
+
   override def writeResultEntry(context: FileContextOut, entry: PersonData): Unit = {
-    def writeDateOption(dateOpt: Option[Date]): Unit = {
-      context.writeLong(dateOpt.map(_.getTime).getOrElse(0))
+    def writeDateOption(dateOpt: Option[LocalDate]): Unit = {
+      context.writeLong(dateOpt.map(DateUtils.toMillis).getOrElse(0))
     }
     def writeIntOption(context: FileContextOut, offset: Int, option: Option[Int]): Unit = context.writeInt(option.getOrElse(-1))
     context.writeString(entry.nom)
