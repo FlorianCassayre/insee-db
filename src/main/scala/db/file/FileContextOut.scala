@@ -1,10 +1,12 @@
 package db.file
 
 import java.io.{BufferedInputStream, BufferedOutputStream, DataInputStream, DataOutput, DataOutputStream, File, FileInputStream, FileOutputStream, RandomAccessFile}
+import java.util
+import java.util.{Collections, Comparator}
 
 import db.util.DatabaseUtils._
 
-class FileContextOut(file: File) {
+class FileContextOut(file: File, maxBufferSize: Int) {
 
   private val bufferFile: File = new File(file.getAbsoluteFile + ".tmp")
 
@@ -70,29 +72,126 @@ class FileContextOut(file: File) {
     outMain.close()
     outPointerBuffer.close()
 
-    val randomAccess = new RandomAccessFile(file, "rw")
     val bufferRead = new DataInputStream(new BufferedInputStream(new FileInputStream(bufferFile)))
+    def ceilDiv(num: Long, divisor: Long) = (num + divisor - 1) / divisor
 
-    def readBufferEntry(): (Long, Long) = {
+    val maxEntriesPerFragment = ceilDiv(maxBufferSize, 2 * LongSize).toInt
+    val fragments = ceilDiv(bufferLength, maxEntriesPerFragment).toInt
+    assert(fragments < 100) // Safeguard
+
+    def readBufferEntry(stream: DataInputStream): (Long, Long) = {
       def readPointer(): Long = {
-        val high = bufferRead.readByte()
-        val low = bufferRead.readInt()
+        val high = stream.readByte()
+        val low = stream.readInt()
         ((high & 0xffL) << 32) | (low & 0xffffffffL)
       }
       (readPointer(), readPointer())
     }
 
+    def getFragmentFile(id: Int): File = new File(file.getAbsoluteFile + ".tmp" + id)
+
+    val fragmentsLength = Array.ofDim[Int](fragments)
+    var remaining = bufferLength.toLong
+    for(fragment <- 0 until fragments) {
+      val fragmentFile = getFragmentFile(fragment)
+      val fragmentOutput = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(fragmentFile)))
+
+      val newRemaining = Math.max(remaining - maxEntriesPerFragment, 0)
+      val entriesInFragment = (remaining - newRemaining).toInt
+      remaining = newRemaining
+      fragmentsLength(fragment) = entriesInFragment
+
+      // Populate array
+      val array = new PointerArrayList(Array.ofDim[Long](2 * entriesInFragment.toInt))
+      for(i <- 0 until entriesInFragment) {
+        val entry = readBufferEntry(bufferRead)
+        array.set(i, entry)
+      }
+
+      // Sort array
+      Collections.sort(array, new PointerTupleComparator)
+
+      // Write sorted array back to disk
+      for(i <- 0 until entriesInFragment) {
+        val (location, value) = array.get(i)
+        writePointer(fragmentOutput, location)
+        writePointer(fragmentOutput, value)
+      }
+
+      fragmentOutput.close()
+    }
+
+    bufferRead.close() // Close reader
+    bufferFile.delete() // Delete temporary buffer
+
+    val fragmentFiles = (0 until fragments).map(getFragmentFile)
+    val fragmentInputs = fragmentFiles.map(f => new DataInputStream(new BufferedInputStream(new FileInputStream(f))))
+    val fragmentIndex = Array.ofDim[Int](fragments)
+    fragmentsLength.copyToArray(fragmentIndex)
+    def readNext(id: Int): Option[(Long, Long)] = {
+      if(fragmentIndex(id) > 0) {
+        fragmentIndex(id) -= 1
+        val fragmentInput = fragmentInputs(id)
+        val entry = readBufferEntry(fragmentInput)
+        Some(entry)
+      } else {
+        None
+      }
+    }
+
+    // Initialize priority queue
+    val queue = new util.TreeMap[(Long, Long), Int](new PointerTupleComparator)
+    for {
+      i <- 0 until fragments
+      entry <- readNext(i)
+    } {
+      queue.put(entry, i)
+    }
+
+    val randomAccess = new RandomAccessFile(file, "rw")
+
     for(i <- 0 until bufferLength) {
-      val (fileAddress, pointerValue) = readBufferEntry()
+      val entry = queue.pollFirstEntry()
+      val (fileAddress, pointerValue) = entry.getKey
+      val index = entry.getValue
+
+      // Write
       randomAccess.seek(fileAddress)
       writePointer(randomAccess, pointerValue)
+
+      // Refill the queue
+      readNext(index).foreach { next =>
+        queue.put(next, index)
+      }
     }
+
+    // Close and delete
+    fragmentInputs.foreach(_.close())
+    fragmentFiles.foreach(_.delete())
 
     // Close
     randomAccess.close()
-    bufferRead.close()
-
-    bufferFile.delete() // Delete temporary buffer
   }
 
+  private class PointerArrayList(array: Array[Long]) extends util.AbstractList[(Long, Long)] {
+    assert(array.length % 2 == 0)
+    private val realSize = array.length / 2
+
+    override def get(index: Int): (Long, Long) = {
+      val j = 2 * index
+      (array(j), array(j + 1))
+    }
+    override def set(index: Int, e: (Long, Long)): (Long, Long) = {
+      val j = 2 * index
+      val previous = (array(j), array(j + 1))
+      array(j) = e._1
+      array(j + 1) = e._2
+      previous
+    }
+    override def size(): Int = realSize
+  }
+
+  private class PointerTupleComparator extends Comparator[(Long, Long)] {
+    override def compare(o1: (Long, Long), o2: (Long, Long)): Int = java.lang.Long.compare(o1._1, o2._1)
+  }
 }

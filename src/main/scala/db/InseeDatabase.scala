@@ -203,7 +203,8 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
   }
 
   private def write[P](level: DatabaseLevel[_, P, _], data: Map[Int, P], file: File): Unit = {
-    val context = new FileContextOut(file)
+    val bufferSizeBytes = 100_000_000 // TODO
+    val context = new FileContextOut(file, bufferSizeBytes)
     level.write(context, data)
     print("Flushing... ")
     context.close()
