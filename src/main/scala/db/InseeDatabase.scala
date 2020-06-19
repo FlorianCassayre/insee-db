@@ -202,7 +202,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
   }
 
   private def write[P](level: DatabaseLevel[_, P, _], data: Map[Int, P], file: File): Unit = {
-    val bufferSizeBytes = 100_000_000 // TODO
+    val bufferSizeBytes = 1_000_000_000 // TODO
     val context = new FileContextOut(file, bufferSizeBytes)
     level.write(context, data)
     print("Flushing... ")
@@ -273,7 +273,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
     logEllipse("Iterating through dataset")
 
     def getIterator(): Iterable[PersonRaw] =
-      inseeOfficialFilesDirectory.listFiles().view
+      inseeOfficialFilesDirectory.listFiles().sortBy(_.getName).view
         .flatMap(InseePersonsReader.readOfficialYearlyFile)
         .filter(InseePersonsReader.isReasonable)
         //.take(1_000)
