@@ -6,7 +6,7 @@ import java.util.{Collections, Comparator}
 
 import db.util.DatabaseUtils._
 
-class FileContextOut(file: File, maxBufferSize: Int) {
+class FileContextOut(file: File, maxBufferSize: Long) {
 
   private val bufferFile: File = new File(file.getAbsoluteFile + ".tmp")
 
@@ -75,7 +75,7 @@ class FileContextOut(file: File, maxBufferSize: Int) {
     val bufferRead = new DataInputStream(new BufferedInputStream(new FileInputStream(bufferFile)))
     def ceilDiv(num: Long, divisor: Long) = (num + divisor - 1) / divisor
 
-    val maxEntriesPerFragment = ceilDiv(maxBufferSize, 2 * LongSize).toInt
+    val maxEntriesPerFragment = ceilDiv(maxBufferSize, 2 * LongSize)
     val fragments = ceilDiv(bufferLength, maxEntriesPerFragment).toInt
     assert(fragments < 100) // Safeguard
 
@@ -148,16 +148,25 @@ class FileContextOut(file: File, maxBufferSize: Int) {
       queue.put(entry, i)
     }
 
-    val randomAccess = new RandomAccessFile(file, "rw")
-
+    val reader = new DataInputStream(new BufferedInputStream(new FileInputStream(file)))
+    val copyFile = new File(file.getAbsolutePath + ".cpy")
+    val copy = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(copyFile)))
+    var currentAddress = 0L
     for(i <- 0 until bufferLength) {
       val entry = queue.pollFirstEntry()
       val (fileAddress, pointerValue) = entry.getKey
       val index = entry.getValue
 
-      // Write
-      randomAccess.seek(fileAddress)
-      writePointer(randomAccess, pointerValue)
+      val len = (fileAddress - currentAddress + PointerSize).toInt
+      val bytes = Array.ofDim[Byte](len)
+      var r = 0
+      while(r < len) {
+        r += reader.read(bytes, r, len - r)
+      }
+      copy.write(bytes, 0, len - PointerSize)
+      writePointer(copy, pointerValue)
+
+      currentAddress += len
 
       // Refill the queue
       readNext(index).foreach { next =>
@@ -165,12 +174,25 @@ class FileContextOut(file: File, maxBufferSize: Int) {
       }
     }
 
+    val len = (file.length() - currentAddress).toInt
+    val bytes = Array.ofDim[Byte](len)
+    var r = 0
+    while(r < len) {
+      r += reader.read(bytes, r, len - r)
+    }
+    copy.write(bytes, 0, len)
+    currentAddress += len
+
     // Close and delete
     fragmentInputs.foreach(_.close())
-    fragmentFiles.foreach(_.delete())
+    assert(fragmentFiles.forall(_.delete()))
 
     // Close
-    randomAccess.close()
+    reader.close()
+    copy.close()
+
+    assert(file.delete())
+    assert(copyFile.renameTo(file))
   }
 
   private class PointerArrayList(array: Array[Long]) extends util.AbstractList[(Long, Long)] {

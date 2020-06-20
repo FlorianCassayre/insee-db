@@ -20,7 +20,7 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
   private def relative(filename: String): File = new File(root.getAbsolutePath + "/" + filename)
 
-  private def open(file: File): FileContextIn = new FileContextIn(new RandomAccessFile(file, if (readonly) "r" else "rw"))
+  private def open(file: File): FileContextIn = if(readonly) new FileContextIn(new RandomAccessFile(file, "r")) else null
 
 
   /* Files */
@@ -414,11 +414,13 @@ class InseeDatabase(root: File, readonly: Boolean = true) {
 
 
   def dispose(): Unit = {
-    personsDataFileIn.close()
-    placesDataFileIn.close()
-    surnamesIndexFileIn.close()
-    namesIndexFileIn.close()
-    searchIndexFileIn.close()
-    placesIndexFileIn.close()
+    if(readonly) {
+      personsDataFileIn.close()
+      placesDataFileIn.close()
+      surnamesIndexFileIn.close()
+      namesIndexFileIn.close()
+      searchIndexFileIn.close()
+      placesIndexFileIn.close()
+    }
   }
 }
