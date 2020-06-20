@@ -10,8 +10,6 @@ object MainWebserverOffline extends App with AbstractWebserver {
 
   protected implicit val offlineResponseFormat: RootJsonFormat[OfflineResponse] = jsonFormat2(OfflineResponse)
 
-  private val matcher: PathMatcher0 = PathMatchers.Neutral
-
   private val message = args.headOption
 
   println("Starting server in offline mode...")
@@ -21,7 +19,7 @@ object MainWebserverOffline extends App with AbstractWebserver {
     println(s"The following message will be displayed to visitors: '${message.get}'")
   }
 
-  override protected val route = path(matcher) {
+  override protected val route = {
     val offlineResponse = OfflineResponse(ServiceUnavailable.intValue, message)
     cors.corsHandler(complete(offlineResponse.code, offlineResponse))
   }
