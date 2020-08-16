@@ -1,6 +1,6 @@
 import java.io.File
 
-import db.InseeDatabase
+import db.InseeDatabaseReader
 import org.kohsuke.args4j.{Argument, CmdLineException, CmdLineParser, Option}
 import util.CliUtils._
 
@@ -65,7 +65,7 @@ object MainTest extends App {
       System.exit(1)
   }
 
-  val db = new InseeDatabase(new File(CliArgs.arguments.get(0)))
+  val db = new InseeDatabaseReader(new File(CliArgs.arguments.get(0)))
 
   val t0 = System.currentTimeMillis()
 

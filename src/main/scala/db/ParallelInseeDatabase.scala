@@ -16,11 +16,13 @@ class ParallelInseeDatabase(root: File) {
 
   implicit val ec: ExecutionContextExecutor = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(InstancesCount))
 
-  private val instances = IndexedSeq.fill(InstancesCount)(new InseeDatabase(root))
+  private val instances = IndexedSeq.fill(InstancesCount)(new InseeDatabaseReader(root))
+
+  private val modelInstance = instances.head
 
   // Greedy instance selection
   var instanceIndex = 0
-  private def getInstance(): InseeDatabase = this.synchronized {
+  private def getInstance(): InseeDatabaseReader = this.synchronized {
     val instance = instances(instanceIndex)
     instanceIndex = (instanceIndex + 1) % instances.size
     instance
@@ -36,7 +38,7 @@ class ParallelInseeDatabase(root: File) {
                   ): ResultSet[PersonDisplay] = {
     require(limit >= 0 && offset >= 0)
 
-    def processName(name: Option[String], translation: (InseeDatabase, String) => Option[Int]): Future[Option[Seq[Int]]] = Future {
+    def processName(name: Option[String], translation: (InseeDatabaseReader, String) => Option[Int]): Future[Option[Seq[Int]]] = Future {
       val result = name.map(StringUtils.cleanSplitAndNormalize).getOrElse(Seq.empty).map(s => translation(getInstance(), s))
       if(result.exists(_.isEmpty))
         None
@@ -48,7 +50,7 @@ class ParallelInseeDatabase(root: File) {
     val placeOptFuture = Future { // TODO parallelize this even more
       placeId.map(getInstance().idToAbsolutePlace) match {
         case Some(None) => None
-        case other => Some(other.flatten.getOrElse(Seq(0))) // `0` is the root place
+        case other => Some(other.flatten.getOrElse(Seq(modelInstance.RootPlaceId)))
       }
     }
 
@@ -61,7 +63,7 @@ class ParallelInseeDatabase(root: File) {
     Await.result(translatedFuture, Duration.Inf) match {
       case (Some(surnames), Some(names), Some(place)) =>
 
-        val parameters = PersonQuery(surnames, names, place, filterByBirth = filterByBirth, ascending = ascending, after.map(_ - instances.head.BaseYear), before.map(_ - instances.head.BaseYear))
+        val parameters = PersonQuery(surnames, names, place, filterByBirth = filterByBirth, ascending = ascending, after.map(_ - modelInstance.BaseYear), before.map(_ - modelInstance.BaseYear))
 
         val resultIds = getInstance().queryPersonsId(offset, limit, parameters)
 
