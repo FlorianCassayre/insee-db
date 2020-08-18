@@ -40,6 +40,9 @@ object MainTest extends App {
     @Option(name = "-limit", aliases = Array("-l"), usage = "Defines the maximum number of results to be displayed.")
     var limit: Int = 10
 
+    @Option(name = "-stats", aliases = Array("-z"), usage = "Aggregate geographical statistics for this query.")
+    var statsMode: Boolean = false
+
   }
 
   val parser = new CmdLineParser(CliArgs)
@@ -69,14 +72,23 @@ object MainTest extends App {
 
   val t0 = System.currentTimeMillis()
 
-  val place = scala.Option(CliArgs.place).map(v => db.queryPlacesByPrefix(1, v).map(_.id).headOption.getOrElse(-1)).getOrElse(0)
+  var t1: Long = _
+  if(!CliArgs.statsMode) {
+    val place = scala.Option(CliArgs.place).map(v => db.queryPlacesByPrefix(1, v).map(_.id).headOption.getOrElse(-1)).getOrElse(0)
 
-  val result = db.queryPersons(CliArgs.offset, CliArgs.limit, placeId = Some(place), name = scala.Option(CliArgs.name), surname = scala.Option(CliArgs.surname), filterByBirth = CliArgs.eventBoolean, after = if(CliArgs.after == null) None else Some(CliArgs.after), before = if(CliArgs.before == null) None else Some(CliArgs.before), ascending = CliArgs.orderBoolean)
+    val result = db.queryPersons(CliArgs.offset, CliArgs.limit, placeId = Some(place), name = scala.Option(CliArgs.name), surname = scala.Option(CliArgs.surname), filterByBirth = CliArgs.eventBoolean, after = if(CliArgs.after == null) None else Some(CliArgs.after), before = if(CliArgs.before == null) None else Some(CliArgs.before), ascending = CliArgs.orderBoolean)
 
-  val t1 = System.currentTimeMillis()
+    t1 = System.currentTimeMillis()
 
-  println(s"${result.total} entries (${result.entries.size} shown)")
-  println(asciiTable(PersonFieldsHeader, result.entries.map(personToFields)))
+    println(s"${result.total} entries (${result.entries.size} shown)")
+    println(asciiTable(PersonFieldsHeader, result.entries.map(personToFields)))
+  } else {
+    val result = db.queryPlaceStatisticsCode(name = scala.Option(CliArgs.name), surname = scala.Option(CliArgs.surname), placeCode = Some("C-FR"))
+
+    t1 = System.currentTimeMillis()
+
+    result.foreach(println)
+  }
 
   println(s"Result in ${t1 - t0} ms")
 

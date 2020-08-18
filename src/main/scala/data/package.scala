@@ -33,6 +33,13 @@ package object data {
                              deathDate: Option[LocalDate],
                              deathPlaceIds: Seq[Int])
 
+  // Query parameters for simple search
+  abstract class AbstractNamePlaceQuery {
+    val nomsIds: Seq[Int]
+    val prenomsIds: Seq[Int]
+    val placeIds: Seq[Int]
+  }
+
   // Query parameters performed by the end user after processing
   case class PersonQuery(nomsIds: Seq[Int],
                          prenomsIds: Seq[Int],
@@ -40,7 +47,12 @@ package object data {
                          filterByBirth: Boolean,
                          ascending: Boolean,
                          yearMin: Option[Int],
-                         yearMax: Option[Int])
+                         yearMax: Option[Int]) extends AbstractNamePlaceQuery
+
+  // Query parameters for statistics query
+  case class PlaceStatisticsQuery(nomsIds: Seq[Int],
+                                  prenomsIds: Seq[Int],
+                                  placeIds: Seq[Int]) extends AbstractNamePlaceQuery
 
   // Person data, in an easily displayable format
   case class PersonDisplay(nom: String,

@@ -2,7 +2,7 @@ package db
 
 import java.io.File
 
-import data.{PersonProcessed, PersonQuery, PlaceData}
+import data.{AbstractNamePlaceQuery, PersonProcessed, PersonQuery, PlaceData}
 import db.file.writer.{DataHandler, ShortHandler, ThreeBytesHandler}
 import db.index.{ExactStringMachIndex, ExclusiveSubsetIndex, PointerBasedIndex, PrefixIndex, StringBasedIndex}
 import db.result.{DirectDateResult, DirectPersonResult, DirectPlaceResult, LimitedReferenceResult, ReferenceResult}
@@ -46,35 +46,46 @@ abstract class AbstractInseeDatabase(root: File) {
     override def getWriteParameter(q: String): Seq[Byte] = getQueryParameter(q)
   }
 
-  type PersonLevel = DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]]
-
-  protected val searchIndex: PersonLevel = new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
+  protected abstract class SurnameSetLevel[Q <: AbstractNamePlaceQuery, R] extends ExclusiveSubsetIndex[Q, PersonProcessed, R] with PointerBasedIndex {
     override val ignoreRoot: Boolean = true
     override val keyHandler: DataHandler = new ThreeBytesHandler()
-    override def getQueryParameter(q: PersonQuery): Seq[Int] = q.nomsIds
+    override def getQueryParameter(q: Q): Seq[Int] = q.nomsIds
     override def getWriteParameter(q: PersonProcessed): Seq[Int] = q.noms
-    override val child: PersonLevel = new ExclusiveSubsetIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
-        override val keyHandler: DataHandler = new ThreeBytesHandler()
-        override def getQueryParameter(q: PersonQuery): Seq[Int] = q.prenomsIds
-        override def getWriteParameter(q: PersonProcessed): Seq[Int] = q.prenoms
-        override val child: PersonLevel = new PrefixIndex[PersonQuery, PersonProcessed, ResultSet[Int]] with PointerBasedIndex {
-          override val keyHandler: DataHandler = new ShortHandler()
-          override def getQueryParameter(q: PersonQuery): Seq[Seq[Int]] = Seq(q.placeIds)
-          override def getWriteParameter(q: PersonProcessed): Seq[Seq[Int]] = Seq(q.birthPlaceIds, q.deathPlaceIds).toSet.toSeq
-          override val child: PersonLevel = new ReferenceResult[PersonQuery, PersonProcessed]() {
-            override val OrdersCount: Int = 2
-            override def ordering(i: Int)(id: Int, value: PersonProcessed): Long = i match {
-              case 0 => value.birthDate.map(DateUtils.toMillis).getOrElse(Long.MaxValue) // Birth date
-              case 1 => value.deathDate.map(DateUtils.toMillis).getOrElse(Long.MaxValue) // Death date
-            }
-            override def getOrder(q: PersonQuery): Int = if(q.filterByBirth) 0 else 1
-            override def orderTransformer(i: Int)(id: Int): Int = idToDate(id, i).get
-            override def lowerBound(i: Int)(value: PersonQuery): Option[Int] = value.yearMin // i is unused here
-            override def upperBound(i: Int)(value: PersonQuery): Option[Int] = value.yearMax
-            override def isAscending(i: Int)(value: PersonQuery): Boolean = value.ascending
-          }
-        }
+  }
+
+  protected abstract class GivenNameSetLevel[Q <: AbstractNamePlaceQuery, R] extends ExclusiveSubsetIndex[Q, PersonProcessed, R] with PointerBasedIndex {
+    override val keyHandler: DataHandler = new ThreeBytesHandler()
+    override def getQueryParameter(q: Q): Seq[Int] = q.prenomsIds
+    override def getWriteParameter(q: PersonProcessed): Seq[Int] = q.prenoms
+  }
+
+  protected abstract class PlaceTreeLevel[Q <: AbstractNamePlaceQuery, R] extends PrefixIndex[Q, PersonProcessed, R] with PointerBasedIndex {
+    override val keyHandler: DataHandler = new ShortHandler()
+    override def getQueryParameter(q: Q): Seq[Seq[Int]] = Seq(q.placeIds)
+    override def getWriteParameter(q: PersonProcessed): Seq[Seq[Int]] = Seq(q.birthPlaceIds, q.deathPlaceIds).toSet.toSeq
+  }
+
+  protected class DualDateSortedPersonResult extends ReferenceResult[PersonQuery, PersonProcessed] {
+    override val OrdersCount: Int = 2
+    override def ordering(i: Int)(id: Int, value: PersonProcessed): Long = i match {
+      case 0 => value.birthDate.map(DateUtils.toMillis).getOrElse(Long.MaxValue) // Birth date
+      case 1 => value.deathDate.map(DateUtils.toMillis).getOrElse(Long.MaxValue) // Death date
+    }
+    override def getOrder(q: PersonQuery): Int = if(q.filterByBirth) 0 else 1
+    override def orderTransformer(i: Int)(id: Int): Int = idToDate(id, i).get
+    override def lowerBound(i: Int)(value: PersonQuery): Option[Int] = value.yearMin // i is unused here
+    override def upperBound(i: Int)(value: PersonQuery): Option[Int] = value.yearMax
+    override def isAscending(i: Int)(value: PersonQuery): Boolean = value.ascending
+  }
+
+  type PersonLevel = DatabaseLevel[PersonQuery, PersonProcessed, ResultSet[Int]]
+
+  protected val searchIndex: PersonLevel = new SurnameSetLevel[PersonQuery, ResultSet[Int]] {
+    override val child: PersonLevel = new GivenNameSetLevel[PersonQuery, ResultSet[Int]] {
+      override val child: PersonLevel = new PlaceTreeLevel[PersonQuery, ResultSet[Int]] {
+        override val child: PersonLevel = new DualDateSortedPersonResult
       }
+    }
   }
 
   type PlaceLevel = DatabaseLevel[String, (String, Int), ResultSet[Int]]
