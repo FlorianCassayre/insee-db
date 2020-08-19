@@ -10,6 +10,7 @@ import scala.collection.Seq
 object CliUtils {
 
   val PersonFieldsHeader: Seq[String] = Seq("Nom", "Prénom", "Sexe", "Date naissance", "Lieu naissance", "Date décès", "Lieu décès")
+  val StatsFieldsHeader: Seq[String] = Seq("Code lieu", "Résultats")
 
   private val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
 

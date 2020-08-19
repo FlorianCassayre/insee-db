@@ -16,14 +16,20 @@ object MainWebserver extends App with AbstractWebserver {
 
   val db = new ParallelInseeDatabase(new File(args(0)))
 
+  case class NamedCount(name: String, count: Int)
+
   case class PlacesResponse(override val code: Int, results: Seq[PlaceDisplay]) extends Response
   case class PersonsResponse(override val code: Int, count: Int, results: Seq[PersonDisplay]) extends Response
+  case class StatsGeographyResponse(override val code: Int, results: Seq[NamedCount]) extends Response
 
   implicit val placeFormat: RootJsonFormat[PlaceDisplay] = jsonFormat2(PlaceDisplay)
   implicit val placesResponseFormat: RootJsonFormat[PlacesResponse] = jsonFormat2(PlacesResponse)
 
   implicit val personsFormat: RootJsonFormat[PersonDisplay] = jsonFormat7(PersonDisplay)
   implicit val personsResponseFormat: RootJsonFormat[PersonsResponse] = jsonFormat3(PersonsResponse)
+
+  implicit val namedCountFormat: RootJsonFormat[NamedCount] = jsonFormat2(NamedCount)
+  implicit val statsGeographyResponseFormat: RootJsonFormat[StatsGeographyResponse] = jsonFormat2(StatsGeographyResponse)
 
   implicit def dateJsonConvertor: JsonFormat[LocalDate] = new JsonFormat[LocalDate] {
     private val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
@@ -77,6 +83,17 @@ object MainWebserver extends App with AbstractWebserver {
                 val successResponse = PersonsResponse(OK.intValue, result.total, result.entries)
                 cors.corsHandler(complete(successResponse.code, successResponse))
               }
+          }
+        },
+        pathPrefix("stats") {
+          path("geography") {
+            parameters("surname".as[String], "name".as[String] ? "", "code".as[String] ? "") {
+              (surname, name, code) =>
+                val result = db.getInstance().queryPlaceStatisticsCode(surname = Some(surname), name = Some(name), placeCode = Some(code))
+
+                val successResponse = StatsGeographyResponse(OK.intValue, result.map { case (name, count) => NamedCount(name, count) })
+                cors.corsHandler(complete(successResponse.code, successResponse))
+            }
           }
         }
       )

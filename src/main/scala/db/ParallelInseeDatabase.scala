@@ -21,8 +21,8 @@ class ParallelInseeDatabase(root: File) {
   private val modelInstance = instances.head
 
   // Greedy instance selection
-  var instanceIndex = 0
-  private def getInstance(): InseeDatabaseReader = this.synchronized {
+  private var instanceIndex = 0
+  def getInstance(): InseeDatabaseReader = this.synchronized {
     val instance = instances(instanceIndex)
     instanceIndex = (instanceIndex + 1) % instances.size
     instance

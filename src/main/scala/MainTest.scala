@@ -11,37 +11,40 @@ object MainTest extends App {
     @Argument
     var arguments: java.util.List[String] = new java.util.ArrayList[String]()
 
-    @Option(name = "-surname", aliases = Array("-s"), required = true, usage = "Searches with the specified surname(s).")
+    @Option(name = "--surname", aliases = Array("-s"), required = true, usage = "Searches with the specified surname(s).")
     var surname: String = _
 
-    @Option(name = "-name", aliases = Array("-n"), usage = "Searches with the specified name(s).")
+    @Option(name = "--name", aliases = Array("-n"), usage = "Searches with the specified name(s).")
     var name: String = _
 
-    @Option(name = "-place", aliases = Array("-p"), usage = "Searches at the given place.")
+    @Option(name = "--place", aliases = Array("-p"), usage = "Searches at the given place.")
     var place: String = _
 
-    @Option(name = "-event", aliases = Array("-e"), usage = "Filters by the given event type.")
+    @Option(name = "--event", aliases = Array("-e"), usage = "Filters by the given event type.")
     var event: String = _
     var eventBoolean: Boolean = true
 
-    @Option(name = "-after", aliases = Array("-a"), usage = "Searches for events occurring after or during the specified year.")
+    @Option(name = "--after", aliases = Array("-a"), usage = "Searches for events occurring after or during the specified year.")
     var after: Integer = _
 
-    @Option(name = "-before", aliases = Array("-b"), usage = "Searches for events occurring before or during the specified year.")
+    @Option(name = "--before", aliases = Array("-b"), usage = "Searches for events occurring before or during the specified year.")
     var before: Integer = _
 
-    @Option(name = "-order", aliases = Array("-o"), usage = "Defines the ordering of the results.")
+    @Option(name = "--order", aliases = Array("-o"), usage = "Defines the ordering of the results.")
     var order: String = _
     var orderBoolean: Boolean = true
 
-    @Option(name = "-offset", aliases = Array("-k"), usage = "Defines the offset of the result set.")
+    @Option(name = "--offset", aliases = Array("-k"), usage = "Defines the offset of the result set.")
     var offset: Int = 0
 
-    @Option(name = "-limit", aliases = Array("-l"), usage = "Defines the maximum number of results to be displayed.")
+    @Option(name = "--limit", aliases = Array("-l"), usage = "Defines the maximum number of results to be displayed.")
     var limit: Int = 10
 
-    @Option(name = "-stats", aliases = Array("-z"), usage = "Aggregate geographical statistics for this query.")
+    @Option(name = "--stats", aliases = Array("-z"), usage = "Aggregates geographical statistics for this query.", forbids = Array("-p", "-e", "-a", "-b", "-o", "-k", "-l"))
     var statsMode: Boolean = false
+
+    @Option(name = "--code", aliases = Array("-c"), usage = "Selects the geographical scope for statistical queries.", depends = Array("-z"))
+    var statsCode: String = _
 
   }
 
@@ -83,11 +86,12 @@ object MainTest extends App {
     println(s"${result.total} entries (${result.entries.size} shown)")
     println(asciiTable(PersonFieldsHeader, result.entries.map(personToFields)))
   } else {
-    val result = db.queryPlaceStatisticsCode(name = scala.Option(CliArgs.name), surname = scala.Option(CliArgs.surname), placeCode = Some("C-FR"))
+    val placeCode = if(CliArgs.statsCode == null || CliArgs.statsCode.isBlank) None else Some(CliArgs.statsCode)
+    val result = db.queryPlaceStatisticsCode(name = scala.Option(CliArgs.name), surname = scala.Option(CliArgs.surname), placeCode = placeCode)
 
     t1 = System.currentTimeMillis()
 
-    result.foreach(println)
+    println(asciiTable(StatsFieldsHeader, result.map { case (code, count) => Seq(code, count.toString) }))
   }
 
   println(s"Result in ${t1 - t0} ms")

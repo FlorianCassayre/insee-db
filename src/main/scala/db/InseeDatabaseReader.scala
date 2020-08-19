@@ -143,11 +143,12 @@ class InseeDatabaseReader(root: File) extends AbstractInseeDatabase(root) {
     placesIndex.query(placesIndexFileIn, 0, limit, normalized).entries.map(id => PlaceDisplay(id, idToPlaceDisplay(id).get))
   }
 
-  private[db] def queryPlaceStatisticsId(surname: Option[String] = None, name: Option[String] = None, placeIds: Seq[Int]): Map[Int, Int] = {
+  private[db] def queryPlaceStatisticsId(surname: Option[String] = None, name: Option[String] = None, placeIds: Seq[Int]): Seq[(Int, Int)] = {
     namesToIds(surname, name) match {
       case Some((surnames, names)) =>
         searchStatsIndex.query(searchIndexFileIn, 0, Int.MaxValue, PlaceStatisticsQuery(surnames, names, placeIds))
-      case None => Map.empty
+          .toSeq.sortBy(-_._2)
+      case None => Seq.empty
     }
   }
 
@@ -172,7 +173,7 @@ class InseeDatabaseReader(root: File) extends AbstractInseeDatabase(root) {
 
   /* Methods that depend on the above data */
 
-  def queryPlaceStatisticsCode(surname: Option[String] = None, name: Option[String] = None, placeCode: Option[String]): Map[String, Int] = {
+  def queryPlaceStatisticsCode(surname: Option[String] = None, name: Option[String] = None, placeCode: Option[String]): Seq[(String, Int)] = {
     val result = placeCode match {
       case None => // Root
         queryPlaceStatisticsId(surname, name, Seq())
@@ -181,7 +182,8 @@ class InseeDatabaseReader(root: File) extends AbstractInseeDatabase(root) {
           queryPlaceStatisticsId(surname, name, idToAbsolutePlace(id).get)
         ).getOrElse(Map.empty)
     }
-    result.map { case (k, v) => placeIdToPlaceCode(k) -> v }
+    // TODO
+    result.map { case (k, v) => placeIdToPlaceCode.getOrElse(k, s"I-$k") -> v }.toSeq
   }
 
   /* Finalize */
