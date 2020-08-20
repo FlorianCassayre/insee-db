@@ -8,6 +8,7 @@ import akka.http.scaladsl.server._
 import data.{PersonDisplay, PlaceDisplay}
 import db.ParallelInseeDatabase
 import spray.json._
+import static.Geography
 import web.AbstractWebserver
 
 import scala.collection.Seq
@@ -87,9 +88,9 @@ object MainWebserver extends App with AbstractWebserver {
         },
         pathPrefix("stats") {
           path("geography") {
-            parameters("surname".as[String], "name".as[String] ? "", "code".as[String] ? "") {
-              (surname, name, code) =>
-                val result = db.getInstance().queryPlaceStatisticsCode(surname = Some(surname), name = Some(name), placeCode = Some(code))
+            parameters("surname".as[String], "name".as[String] ? "") {
+              (surname, name) =>
+                val result = db.getInstance().queryPlaceStatisticsCode(surname = Some(surname), name = Some(name), placeCode = Some(Geography.CodeFrance), nestingDepth = Some(2))
 
                 val successResponse = StatsGeographyResponse(OK.intValue, result.map { case (name, count) => NamedCount(name, count) })
                 cors.corsHandler(complete(successResponse.code, successResponse))

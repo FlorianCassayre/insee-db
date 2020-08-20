@@ -52,7 +52,8 @@ package object data {
   // Query parameters for statistics query
   case class PlaceStatisticsQuery(nomsIds: Seq[Int],
                                   prenomsIds: Seq[Int],
-                                  placeIds: Seq[Int]) extends AbstractNamePlaceQuery
+                                  placeIds: Seq[Int],
+                                  nestingDepth: Int) extends AbstractNamePlaceQuery
 
   // Person data, in an easily displayable format
   case class PersonDisplay(nom: String,

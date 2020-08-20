@@ -4,9 +4,11 @@ object Geography {
 
   case class StaticPlace(code: String, name: String, children: Seq[StaticPlace])
 
+  val CodeFrance = c("FR")
+
   val StaticPlaces: Seq[StaticPlace] = Seq(
     // Countries
-    p(c("FR"), "France", Seq(
+    p(CodeFrance, "France", Seq(
       // French regions
       p(r("1"), "Guadeloupe", Seq(
         p(d("971"), "Guadeloupe")

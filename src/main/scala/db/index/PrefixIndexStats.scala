@@ -15,6 +15,24 @@ trait PrefixIndexStats[Q, P, T] extends AbstractFullTrieIndex[Q, P, Map[Int, Int
 
   @tailrec
   private def queryInternal(context: FileContextIn, depth: Int, offset: Int, limit: Int, values: Seq[Int], rest: Q): Map[Int, Int] = {
+    def queryNested(context: FileContextIn, childrenCount: Int, keyOpt: Option[Int], height: Int): Map[Int, Int] = {
+      if(height > 0) {
+        val pairs = for {
+          i <- 0 until childrenCount
+          localOffset = childrenCountHandler.Size + (keyHandler.Size + PointerSize) * i
+          key = keyHandler.read(context, localOffset).toInt
+          childPointer = context.readPointer(localOffset + keyHandler.Size)
+          childContext = context.reindexAbsolute(childPointer)
+          childBranchesCount = childrenCountHandler.read(childContext, 0).toInt
+        } yield queryNested(childContext, childBranchesCount, Some(key), height - 1)
+        pairs.fold(Map.empty)(_ ++ _)
+      } else {
+        val Some(key) = keyOpt // FIXME: poor design, should be ensured by types
+        val childOffset = childrenCountHandler.Size + (keyHandler.Size + PointerSize) * childrenCount
+        val count = context.readInt(childOffset)
+        Map(key -> count)
+      }
+    }
     val childrenCount = childrenCountHandler.read(context, 0).toInt
     values match {
       case head +: tail =>
@@ -26,19 +44,11 @@ trait PrefixIndexStats[Q, P, T] extends AbstractFullTrieIndex[Q, P, Map[Int, Int
             empty
         }
       case Seq() => // End of search for this level, return current result set
-        val pairs = for {
-          i <- 0 until childrenCount
-          localOffset = childrenCountHandler.Size + (keyHandler.Size + PointerSize) * i
-          key = keyHandler.read(context, localOffset).toInt
-          childPointer = context.readPointer(localOffset + keyHandler.Size)
-          childContext = context.reindexAbsolute(childPointer)
-          childBranchesCount = childrenCountHandler.read(childContext, 0).toInt
-          childOffset = childrenCountHandler.Size + (keyHandler.Size + PointerSize) * childBranchesCount
-          count = childContext.readInt(childOffset)
-        } yield key -> count
-        pairs.toMap
+        queryNested(context, childrenCount, None, nestingDepth(rest))
     }
   }
+
+  def nestingDepth(q: Q): Int
 
   override private[db] final val child = null
 

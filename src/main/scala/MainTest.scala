@@ -87,7 +87,7 @@ object MainTest extends App {
     println(asciiTable(PersonFieldsHeader, result.entries.map(personToFields)))
   } else {
     val placeCode = if(CliArgs.statsCode == null || CliArgs.statsCode.isBlank) None else Some(CliArgs.statsCode)
-    val result = db.queryPlaceStatisticsCode(name = scala.Option(CliArgs.name), surname = scala.Option(CliArgs.surname), placeCode = placeCode)
+    val result = db.queryPlaceStatisticsCode(name = scala.Option(CliArgs.name), surname = scala.Option(CliArgs.surname), placeCode = placeCode, nestingDepth = Some(1))
 
     t1 = System.currentTimeMillis()
 

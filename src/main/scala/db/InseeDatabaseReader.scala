@@ -38,7 +38,9 @@ class InseeDatabaseReader(root: File) extends AbstractInseeDatabase(root) {
 
   /* Additional views */
 
-  class PlaceStatsResult extends PlaceTreeLevel[PlaceStatisticsQuery, Map[Int, Int]] with PrefixIndexStats[PlaceStatisticsQuery, PersonProcessed, Seq[Seq[Int]]]
+  class PlaceStatsResult extends PlaceTreeLevel[PlaceStatisticsQuery, Map[Int, Int]] with PrefixIndexStats[PlaceStatisticsQuery, PersonProcessed, Seq[Seq[Int]]] {
+    override def nestingDepth(q: PlaceStatisticsQuery): Int = q.nestingDepth
+  }
 
   type StatsLevel = DatabaseLevel[PlaceStatisticsQuery, PersonProcessed, Map[Int, Int]]
 
@@ -143,10 +145,11 @@ class InseeDatabaseReader(root: File) extends AbstractInseeDatabase(root) {
     placesIndex.query(placesIndexFileIn, 0, limit, normalized).entries.map(id => PlaceDisplay(id, idToPlaceDisplay(id).get))
   }
 
-  private[db] def queryPlaceStatisticsId(surname: Option[String] = None, name: Option[String] = None, placeIds: Seq[Int]): Seq[(Int, Int)] = {
+  private[db] def queryPlaceStatisticsId(surname: Option[String] = None, name: Option[String] = None, placeIds: Seq[Int], nestingDepth: Option[Int]): Seq[(Int, Int)] = {
+    require(nestingDepth.forall(_ > 0))
     namesToIds(surname, name) match {
       case Some((surnames, names)) =>
-        searchStatsIndex.query(searchIndexFileIn, 0, Int.MaxValue, PlaceStatisticsQuery(surnames, names, placeIds))
+        searchStatsIndex.query(searchIndexFileIn, 0, Int.MaxValue, PlaceStatisticsQuery(surnames, names, placeIds, nestingDepth.getOrElse(1)))
           .toSeq.sortBy(-_._2)
       case None => Seq.empty
     }
@@ -173,13 +176,13 @@ class InseeDatabaseReader(root: File) extends AbstractInseeDatabase(root) {
 
   /* Methods that depend on the above data */
 
-  def queryPlaceStatisticsCode(surname: Option[String] = None, name: Option[String] = None, placeCode: Option[String]): Seq[(String, Int)] = {
+  def queryPlaceStatisticsCode(surname: Option[String] = None, name: Option[String] = None, placeCode: Option[String], nestingDepth: Option[Int]): Seq[(String, Int)] = {
     val result = placeCode match {
       case None => // Root
-        queryPlaceStatisticsId(surname, name, Seq())
+        queryPlaceStatisticsId(surname, name, Seq(), nestingDepth)
       case Some(code) => // Other
         placeCodeToPlaceId.get(code).map(id =>
-          queryPlaceStatisticsId(surname, name, idToAbsolutePlace(id).get)
+          queryPlaceStatisticsId(surname, name, idToAbsolutePlace(id).get, nestingDepth)
         ).getOrElse(Map.empty)
     }
     // TODO
