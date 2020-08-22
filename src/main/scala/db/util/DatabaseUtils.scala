@@ -25,10 +25,10 @@ object DatabaseUtils {
         end = mid - 1
       }
     }
-    return None
+    None
   }
 
-  def binarySearchUpperBound(reader: Long => Long, transform: Int => Int, begin: Long, len: Int, step: Int, upper: Int): Option[Long] = {
+  def binarySearchUpperBound(reader: Long => Long, transform: Int => Int, begin: Long, len: Int, step: Int, upper: Int, callbackOpt: Option[(Long, Int) => Unit] = None): Option[Long] = {
     var start = 0
     var end = len - 1
     var ans: Option[Long] = None
@@ -36,6 +36,7 @@ object DatabaseUtils {
       val mid = Math.floorDiv(start + end, 2)
       val index = begin + mid * step
       val read = transform(reader(index).toInt)
+      callbackOpt.foreach(_(index, read))
       if(read <= upper) {
         ans = Some(mid)
         start = mid + 1

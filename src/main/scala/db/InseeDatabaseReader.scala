@@ -5,6 +5,7 @@ import java.io.{File, RandomAccessFile}
 import data._
 import db.file.FileContextIn
 import db.index.{PrefixIndex, PrefixIndexStats}
+import db.result.{OrderedReferenceResult, ReferenceResultStats}
 import db.util.StringUtils._
 import static.Geography
 import static.Geography.StaticPlace
@@ -38,15 +39,28 @@ class InseeDatabaseReader(root: File) extends AbstractInseeDatabase(root) {
 
   /* Additional views */
 
-  class PlaceStatsResult extends PlaceTreeLevel[PlaceStatisticsQuery, Map[Int, Int]] with PrefixIndexStats[PlaceStatisticsQuery, PersonProcessed, Seq[Seq[Int]]] {
+  class GeographicalStatsResult extends PlaceTreeLevel[PlaceStatisticsQuery, Map[Int, Int]] with PrefixIndexStats[PlaceStatisticsQuery, PersonProcessed, Seq[Seq[Int]]] {
     override def nestingDepth(q: PlaceStatisticsQuery): Int = q.nestingDepth
   }
 
-  type StatsLevel = DatabaseLevel[PlaceStatisticsQuery, PersonProcessed, Map[Int, Int]]
+  type GeographicalStatsLevel = DatabaseLevel[PlaceStatisticsQuery, PersonProcessed, Map[Int, Int]]
 
-  protected val searchStatsIndex: StatsLevel = new SurnameSetLevel[PlaceStatisticsQuery, Map[Int, Int]] {
-    override val child: StatsLevel = new GivenNameSetLevel[PlaceStatisticsQuery, Map[Int, Int]] {
-      override val child: StatsLevel = new PlaceStatsResult
+  protected val searchGeographicalStatsIndex: GeographicalStatsLevel = new SurnameSetLevel[PlaceStatisticsQuery, Map[Int, Int]] {
+    override val child: GeographicalStatsLevel = new GivenNameSetLevel[PlaceStatisticsQuery, Map[Int, Int]] {
+      override val child: GeographicalStatsLevel = new GeographicalStatsResult
+    }
+  }
+
+
+  class TemporalStatsResult extends ReferenceResultStats[TimeStatisticsQuery, PersonProcessed] with DualDateSortedPersonResult[TimeStatisticsQuery, Map[Int, Int]]
+
+  type TemporalStatsLevel = DatabaseLevel[TimeStatisticsQuery, PersonProcessed, Map[Int, Int]]
+
+  protected val searchTemporalStatsIndex: TemporalStatsLevel = new SurnameSetLevel[TimeStatisticsQuery, Map[Int, Int]] {
+    override val child: TemporalStatsLevel = new GivenNameSetLevel[TimeStatisticsQuery, Map[Int, Int]] {
+      override val child: TemporalStatsLevel = new PlaceTreeLevel[TimeStatisticsQuery, Map[Int, Int]] {
+        override val child: TemporalStatsLevel = new TemporalStatsResult
+      }
     }
   }
 
@@ -149,9 +163,22 @@ class InseeDatabaseReader(root: File) extends AbstractInseeDatabase(root) {
     require(nestingDepth.forall(_ > 0))
     namesToIds(surname, name) match {
       case Some((surnames, names)) =>
-        searchStatsIndex.query(searchIndexFileIn, 0, Int.MaxValue, PlaceStatisticsQuery(surnames, names, placeIds, nestingDepth.getOrElse(1)))
+        searchGeographicalStatsIndex.query(searchIndexFileIn, 0, Int.MaxValue, PlaceStatisticsQuery(surnames, names, placeIds, nestingDepth.getOrElse(1)))
           .toSeq.sortBy(-_._2)
       case None => Seq.empty
+    }
+  }
+
+  def queryTimesStatistics(surname: Option[String] = None, name: Option[String] = None, placeId: Option[Int], filterByBirth: Boolean = true): Seq[(Int, Int)] = { // date -> count
+    val placeOpt = placeId.map(idToAbsolutePlace) match {
+      case Some(None) => None
+      case other => Some(other.flatten.getOrElse(Seq(RootPlaceId)))
+    }
+    (namesToIds(surname, name), placeOpt) match {
+      case (Some((surnames, names)), Some(place)) =>
+        searchTemporalStatsIndex.query(searchIndexFileIn, 0, Int.MaxValue, TimeStatisticsQuery(surnames, names, place, filterByBirth))
+          .toSeq.map { case (k, v) => (k + BaseYear, v) }.sortBy(_._1)
+      case _ => Seq.empty
     }
   }
 

@@ -40,8 +40,11 @@ object MainTest extends App {
     @Option(name = "--limit", aliases = Array("-l"), usage = "Defines the maximum number of results to be displayed.")
     var limit: Int = 10
 
-    @Option(name = "--stats", aliases = Array("-z"), usage = "Aggregates geographical statistics for this query.", forbids = Array("-p", "-e", "-a", "-b", "-o", "-k", "-l"))
-    var statsMode: Boolean = false
+    @Option(name = "--stats-geography", aliases = Array("-sg"), usage = "Aggregates geographical statistics for this query.", forbids = Array("-st", "-p", "-e", "-a", "-b", "-o", "-k", "-l"))
+    var statsGeography: Boolean = false
+
+    @Option(name = "--stats-time", aliases = Array("-st"), usage = "Aggregates temporal statistics for this query.", forbids = Array("-sg", "-a", "-b", "-o", "-k", "-l"))
+    var statsTime: Boolean = false
 
     @Option(name = "--code", aliases = Array("-c"), usage = "Selects the geographical scope for statistical queries.", depends = Array("-z"))
     var statsCode: String = _
@@ -75,23 +78,29 @@ object MainTest extends App {
 
   val t0 = System.currentTimeMillis()
 
-  var t1: Long = _
-  if(!CliArgs.statsMode) {
-    val place = scala.Option(CliArgs.place).map(v => db.queryPlacesByPrefix(1, v).map(_.id).headOption.getOrElse(-1)).getOrElse(0)
+  lazy val place = scala.Option(CliArgs.place).map(v => db.queryPlacesByPrefix(1, v).map(_.id).headOption.getOrElse(-1)).getOrElse(0)
 
+  var t1: Long = _
+  if(!CliArgs.statsGeography && !CliArgs.statsTime) {
     val result = db.queryPersons(CliArgs.offset, CliArgs.limit, placeId = Some(place), name = scala.Option(CliArgs.name), surname = scala.Option(CliArgs.surname), filterByBirth = CliArgs.eventBoolean, after = if(CliArgs.after == null) None else Some(CliArgs.after), before = if(CliArgs.before == null) None else Some(CliArgs.before), ascending = CliArgs.orderBoolean)
 
     t1 = System.currentTimeMillis()
 
     println(s"${result.total} entries (${result.entries.size} shown)")
     println(asciiTable(PersonFieldsHeader, result.entries.map(personToFields)))
-  } else {
+  } else if(CliArgs.statsGeography) {
     val placeCode = if(CliArgs.statsCode == null || CliArgs.statsCode.isBlank) None else Some(CliArgs.statsCode)
     val result = db.queryPlaceStatisticsCode(name = scala.Option(CliArgs.name), surname = scala.Option(CliArgs.surname), placeCode = placeCode, nestingDepth = Some(1))
 
     t1 = System.currentTimeMillis()
 
-    println(asciiTable(StatsFieldsHeader, result.map { case (code, count) => Seq(code, count.toString) }))
+    println(asciiTable(StatsGeographyFieldsHeader, result.map { case (code, count) => Seq(code, count.toString) }))
+  } else if(CliArgs.statsTime) {
+    val result = db.queryTimesStatistics(name = scala.Option(CliArgs.name), surname = scala.Option(CliArgs.surname), placeId = Some(place), filterByBirth = CliArgs.eventBoolean)
+
+    t1 = System.currentTimeMillis()
+
+    println(asciiTable(StatsTimeFieldsHeader, result.map { case (year, count) => Seq(year.toString, count.toString) }))
   }
 
   println(s"Result in ${t1 - t0} ms")

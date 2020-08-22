@@ -40,6 +40,10 @@ package object data {
     val placeIds: Seq[Int]
   }
 
+  abstract class AbstractNamePlaceDateAttributeQuery extends AbstractNamePlaceQuery {
+    val filterByBirth: Boolean
+  }
+
   // Query parameters performed by the end user after processing
   case class PersonQuery(nomsIds: Seq[Int],
                          prenomsIds: Seq[Int],
@@ -47,13 +51,19 @@ package object data {
                          filterByBirth: Boolean,
                          ascending: Boolean,
                          yearMin: Option[Int],
-                         yearMax: Option[Int]) extends AbstractNamePlaceQuery
+                         yearMax: Option[Int]) extends AbstractNamePlaceDateAttributeQuery
 
-  // Query parameters for statistics query
+  // Query parameters for geographical statistics queries
   case class PlaceStatisticsQuery(nomsIds: Seq[Int],
                                   prenomsIds: Seq[Int],
                                   placeIds: Seq[Int],
                                   nestingDepth: Int) extends AbstractNamePlaceQuery
+
+  // Query parameters for temporal statistics queries
+  case class TimeStatisticsQuery(nomsIds: Seq[Int],
+                                 prenomsIds: Seq[Int],
+                                 placeIds: Seq[Int],
+                                 filterByBirth: Boolean) extends AbstractNamePlaceDateAttributeQuery
 
   // Person data, in an easily displayable format
   case class PersonDisplay(nom: String,

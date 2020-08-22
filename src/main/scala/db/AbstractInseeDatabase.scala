@@ -2,10 +2,10 @@ package db
 
 import java.io.File
 
-import data.{AbstractNamePlaceQuery, PersonProcessed, PersonQuery, PlaceData}
+import data.{AbstractNamePlaceDateAttributeQuery, AbstractNamePlaceQuery, PersonProcessed, PersonQuery, PlaceData}
 import db.file.writer.{DataHandler, ShortHandler, ThreeBytesHandler}
 import db.index.{ExactStringMachIndex, ExclusiveSubsetIndex, PointerBasedIndex, PrefixIndex, StringBasedIndex}
-import db.result.{DirectDateResult, DirectPersonResult, DirectPlaceResult, LimitedReferenceResult, ReferenceResult}
+import db.result.{DirectDateResult, DirectPersonResult, DirectPlaceResult, LimitedReferenceResult, OrderedReferenceResult, ReferenceResult}
 import db.util.DateUtils
 
 import scala.collection.Seq
@@ -65,14 +65,17 @@ abstract class AbstractInseeDatabase(root: File) {
     override def getWriteParameter(q: PersonProcessed): Seq[Seq[Int]] = Seq(q.birthPlaceIds, q.deathPlaceIds).toSet.toSeq
   }
 
-  protected class DualDateSortedPersonResult extends ReferenceResult[PersonQuery, PersonProcessed] {
+  protected trait DualDateSortedPersonResult[Q <: AbstractNamePlaceDateAttributeQuery, R] extends OrderedReferenceResult[Q, PersonProcessed, R] {
     override val OrdersCount: Int = 2
     override def ordering(i: Int)(id: Int, value: PersonProcessed): Long = i match {
       case 0 => value.birthDate.map(DateUtils.toMillis).getOrElse(Long.MaxValue) // Birth date
       case 1 => value.deathDate.map(DateUtils.toMillis).getOrElse(Long.MaxValue) // Death date
     }
-    override def getOrder(q: PersonQuery): Int = if(q.filterByBirth) 0 else 1
+    override def getOrder(q: Q): Int = if(q.filterByBirth) 0 else 1
     override def orderTransformer(i: Int)(id: Int): Int = idToDate(id, i).get
+  }
+
+  protected class DualDateSortedQueryPersonResult extends ReferenceResult[PersonQuery, PersonProcessed] with DualDateSortedPersonResult[PersonQuery, ResultSet[Int]] {
     override def lowerBound(i: Int)(value: PersonQuery): Option[Int] = value.yearMin // i is unused here
     override def upperBound(i: Int)(value: PersonQuery): Option[Int] = value.yearMax
     override def isAscending(i: Int)(value: PersonQuery): Boolean = value.ascending
@@ -83,7 +86,7 @@ abstract class AbstractInseeDatabase(root: File) {
   protected val searchIndex: PersonLevel = new SurnameSetLevel[PersonQuery, ResultSet[Int]] {
     override val child: PersonLevel = new GivenNameSetLevel[PersonQuery, ResultSet[Int]] {
       override val child: PersonLevel = new PlaceTreeLevel[PersonQuery, ResultSet[Int]] {
-        override val child: PersonLevel = new DualDateSortedPersonResult
+        override val child: PersonLevel = new DualDateSortedQueryPersonResult
       }
     }
   }

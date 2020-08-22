@@ -8,19 +8,9 @@ import db.util.DatabaseUtils.IntSize
 import scala.collection.Map
 import scala.collection.immutable.NumericRange
 
-abstract class LimitedReferenceResult[Q, P] extends LevelResult[Q, P, ResultSet[Int]] {
+abstract class LimitedReferenceResult[Q, P] extends OrderedReferenceResult[Q, P, ResultSet[Int]] {
 
-  val MaxResults: Int
-
-  // Default implementations
-
-  val OrdersCount: Int = 1
-
-  def ordering(i: Int)(id: Int, value: P): Long = id
-
-  def getOrder(q: Q): Int = 0
-
-  def orderTransformer(i: Int)(id: Int): Int = id
+  override val MaxResults: Int = Int.MaxValue
 
   def lowerBound(i: Int)(value: Q): Option[Int] = None
 
