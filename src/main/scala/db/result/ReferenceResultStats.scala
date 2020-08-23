@@ -18,41 +18,50 @@ abstract class ReferenceResultStats[Q, P] extends OrderedReferenceResult[Q, P, M
     val start = IntSize.toLong + orderingOffset
     val end = start + offsetStep
 
-    // Mutable cache: aggKey -> address
-    val queue: mutable.TreeMap[Long, Int] = mutable.TreeMap.empty
-
     // Group by -> count
-    // Data is sorted and dense, expected cost: O(k*log(n))
-    // Reduced IO with memory caching
-    @scala.annotation.tailrec
-    def aggregate(betterStart: Long, aggregated: Map[Int, Int]): Map[Int, Int] = {
-      val resultsLeft = NumericRange(betterStart, end, IntSize).size
-      if(betterStart < end) {
-        val transformer = orderTransformer(order)(_)
-        val aggKey = transformer(context.readInt(betterStart))
+    // Data is sorted and dense
+    // Divide and conquer algorithm
 
-        def updateCache(address: Long, key: Int): Unit = {
-          if(key > aggKey) {
-            queue.put(address, key)
+    val transformer = orderTransformer(order)(_)
+    def attributeAt(i: Long): Int = transformer(context.readInt(i))
+
+    val (lowerMap, upperMap) = (mutable.Map.empty[Int, Long], mutable.Map.empty[Int, Long])
+    def addLower(k: Int, v: Long): Unit = lowerMap += k -> lowerMap.get(k).map(Math.min(_, v)).getOrElse(v)
+    def addUpper(k: Int, v: Long): Unit = upperMap += k -> upperMap.get(k).map(Math.max(_, v)).getOrElse(v)
+
+    val two = 2 * IntSize
+
+    def aggregate(start: Long, end: Long, startValue: Option[Int] = None, endValue: Option[Int] = None): Unit = {
+      val diff = end - start
+      if(diff > 0) {
+        val first = startValue.getOrElse(attributeAt(start))
+        if(diff == IntSize) {
+          addLower(first, start)
+          addUpper(first, start)
+        } else {
+         val last = endValue.getOrElse(attributeAt(end - IntSize))
+          if(first == last) {
+            addLower(first, start)
+            addUpper(first, start)
+          } else if(diff == two) { // Prevent infinite loop
+            addLower(first, start)
+            addUpper(first, start)
+            val second = start + IntSize
+            addLower(last, second)
+            addUpper(last, second)
+          } else { // Divide
+            val mid = ((start + end) >> (1 + 2)) << 2
+            val midValue = attributeAt(mid)
+            aggregate(start, mid + IntSize, endValue = Some(midValue))
+            aggregate(mid, end, startValue = Some(midValue))
           }
         }
-
-        var betterSize = resultsLeft.toInt
-        while(queue.nonEmpty && queue.head._2 <= aggKey) {
-          queue.remove(queue.head._1)
-        }
-        if(queue.nonEmpty) {
-          betterSize = NumericRange(betterStart, queue.head._1, IntSize).size
-        }
-
-        val Some(last) = DatabaseUtils.binarySearchUpperBound(context.readInt, transformer, betterStart, betterSize, IntSize, aggKey, Some(updateCache)).map(_ + 1).map(betterStart + _ * IntSize)
-        val count = NumericRange(betterStart, last, IntSize).size
-        aggregate(last, aggregated + (aggKey -> count))
-      } else {
-        aggregated
-      }
+      } // Otherwise nothing
     }
-    aggregate(start, Map.empty)
+
+    aggregate(start, end)
+
+    lowerMap.map { case (k, v) => k -> (((upperMap(k) - v) / IntSize).toInt + 1) }
   }
 
   override private[db] def empty: Map[Int, Int] = Map.empty
