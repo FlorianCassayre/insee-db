@@ -21,6 +21,16 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
     context.close()
   }
 
+  def generateDatabase(inseeSourceFilesDirectory: File): Unit = {
+    require(inseeSourceFilesDirectory.isDirectory)
+    def file(subpath: String): File = new File(inseeSourceFilesDirectory.getAbsolutePath + File.separator + subpath)
+    generateDatabase(
+      file("deaths"),
+      file("places"),
+      file("prenoms.csv")
+    )
+  }
+
   def generateDatabase(inseeOfficialFilesDirectory: File, inseePlaceDirectory: File, inseeNamesFiles: File): Unit = {
     import scala.collection._
 
@@ -95,8 +105,10 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
     val stopRegex = "[^a-z]+".r
     var (nomsSet, prenomsSet) = (mutable.HashSet.empty[String], mutable.HashSet.empty[String])
     var personsDataMap = mutable.Map.empty[Int, PersonData]
+    var personsSet = mutable.Set.empty[PersonData]
     var placeOccurrences = mutable.Seq.fill(idPlaceMap.size)(0)
     var count = 0
+    var duplicatesRemoved = 0
     getIterator().foreach { p =>
       val id = count
 
@@ -118,16 +130,26 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
       nomsSet.addAll(cleanSplitAndNormalize(p.nom))
       prenomsSet.addAll(cleanSplitAndNormalize(p.prenom))
       val (birthPlace, deathPlace) = (getPlace(p.birthCode), getPlace(p.deathCode))
-      personsDataMap.put(id, PersonData(p.nom, prenomPretty, p.gender, p.birthDate, birthPlace, p.deathDate, deathPlace))
+      val personData = PersonData(p.nom, prenomPretty, p.gender, p.birthDate, birthPlace, p.deathDate, deathPlace)
+      if(!personsSet.contains(personData)) {
+        personsDataMap.put(id, personData)
+        personsSet.add(personData)
 
-      Seq(birthPlace, deathPlace).flatMap(placeAbsolute).foreach { id =>
-        placeOccurrences.update(id, placeOccurrences(id) + 1)
+        Seq(birthPlace, deathPlace).flatMap(placeAbsolute).foreach { id =>
+          placeOccurrences.update(id, placeOccurrences(id) + 1)
+        }
+
+        count += 1
+      } else {
+        duplicatesRemoved += 1
       }
-
-      count += 1
     }
 
+    personsSet = null
+    System.gc()
+
     logOK()
+    println(s"Loaded $count individuals, removed $duplicatesRemoved duplicates")
 
     namesAccent = null
 
@@ -213,6 +235,8 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
     nomsMap = null
     prenomsMap = null
     idPlaceMap = null
+
+    System.gc()
 
     logEllipse("Writing search index (this will take some time)")
 

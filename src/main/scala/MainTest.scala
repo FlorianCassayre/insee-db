@@ -89,7 +89,7 @@ object MainTest extends App {
     println(s"${result.total} entries (${result.entries.size} shown)")
     println(asciiTable(PersonFieldsHeader, result.entries.map(personToFields)))
   } else if(CliArgs.statsGeography) {
-    val placeCode = if(CliArgs.statsCode == null || CliArgs.statsCode.isBlank) None else Some(CliArgs.statsCode)
+    val placeCode = if(CliArgs.statsCode == null || CliArgs.statsCode.trim.isEmpty) None else Some(CliArgs.statsCode)
     val result = db.queryPlaceStatisticsCode(name = scala.Option(CliArgs.name), surname = scala.Option(CliArgs.surname), placeCode = placeCode, nestingDepth = Some(1))
 
     t1 = System.currentTimeMillis()

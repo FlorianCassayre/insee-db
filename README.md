@@ -2,6 +2,8 @@
 
 ## Introduction
 
+(_étapes pour l'installation plus bas_)
+
 L'[INSEE](https://www.insee.fr/) a publié en décembre 2019 les [fichiers des personnes décédées](https://www.data.gouv.fr/fr/datasets/fichier-des-personnes-decedees/).
 Ces jeux de données recensent de manière _très_ exhaustive les personnes françaises étant décédées depuis **1970**.
 Chaque enregistrement contient notamment les données suivantes (du défunt) :
@@ -78,3 +80,80 @@ Cette restriction n'est pas trop gênante dans la mesure où l'intérêt des rec
 
 - Enfin, l'écriture de la base de données prend du temps et nécessite d'avoir beaucoup de mémoire vive à disposition.
 Il est possible d'augmenter la taille de la pile de la JVM au-delà de ce que la mémoire vive peut offrir, mais avec pour conséquence un temps de calcul accru.
+
+## Installation et utilisation
+
+L'installation se décompose en deux étapes ; la première consiste à générer les fichiers de la base de données tandis, la deuxième est la mise en place d'un serveur web capable d'exploiter ces fichiers et de proposer une API REST.
+
+La génération est un processus ponctuel, c'est-à-dire qu'une fois les données produites, la tâche est accomplie.
+Dès lors il est possible d'allouer les deux tâches à deux machines distinctes.
+
+Les caractéristiques minimales suivantes sont nécessaires pour chaque tâche :
+
+- Génération :
+  - **50Go** d'espace disque (le type de disque a peu d'importance) : fichiers de sortie et espace de stockage temporaire
+  - **32Go** de mémoire vive (ou équivalent en swap) : mémoire de travail
+- Serveur web :
+  - **25Go** d'espace disque (SSD recommandé) : base de données
+  - **500Mo** de mémoire vive : JVM
+ 
+Dans les deux cas il vous faudra un environment Scala. Il vous faudra donc les paquets suivants :
+
+- JDK 8+
+- [`sbt`](https://www.scala-sbt.org/)
+ 
+(pour le serveur web il est également possible de construire un exécutable `.jar`, dans ce cas seul un JRE est nécessaire)
+
+### Génération des données
+
+Vous devrez **créér** deux dossiers temporaires (initialement vides) qui se rempliront à l'exécution :
+- Un dossier pour les fichiers source de l'INSEE (`<dossier_source>`)
+- Un dossier de sortie pour les fichiers base de données (`<dossier_sortie>`)
+
+Le chemin peut être relatif, dans ce cas la base correspond au dossier racine du projet.
+
+Si vous souhaitez mettre à jour la base de fichiers sources (en particulier, les nouveaux décès), modifiez le fichier `src/main/scala/MainFetchSources.scala`.
+
+Ensuite, vous pouvez procéder à la génération des données.
+
+1. Commencez par télécharger les fichiers source de l'INSEE :
+
+   `bash ./script/fetch_files.sh <dossier_source>`
+2. Une fois les fichiers téléchargés, entrez dans le shell `sbt` :
+
+   `$ sbt -J-Xmx32g`
+   
+   Au besoin, modifiez la mémoire maximale allouée (ici 32Go).
+3. Compilez le code avec `compile` :
+
+   `sbt> compile`
+4. Exécutez la procédure de génération :
+
+   `sbt> runMain MainWrite <dossier_sortie> <dossier_source>`
+   
+   Celle-ci devrait prendre une bonne heure.
+   
+   Les logs de la sortie standard vous indiqueront le progrès de la tâche.
+   Vous pouvez aussi utiliser `watch ls -lah` dans `<dossier_sortie>` pour surveiller la progression.
+5. (_optionnel_) Testez la base de données nouvellement générée :
+
+   `sbt> runMain MainTest <dossier_sortie> -s chirac -n jacques`
+   
+   Si tout s'est passé correctement vous devriez pouvoir lire les données.
+   
+   Lors d'une mise à jour de la base avec de nouvelles données, veillez à ce que les requêtes dans la nouvelle base produisent plus de résultats que dans l'ancienne (à moins d'un changement dans le code ceci doit toujours être le cas).
+
+### Serveur web
+
+Une fois les données générées dans `<dossier_sortie>` vous pouvez les transférer sur votre serveur web dans un dossier que l'on appelera `<dossier_donnees>`.
+
+1. Entrez à nouveau dans le shell :
+
+  `$ sbt`
+2. Démarrez le serveur web :
+
+  `sbt> runMain MainWebserver <dossier_donnees>`
+  
+Remarque : le serveur web dispose d'un mode maintenance, activable en exécutant :
+
+`sbt> runMain MainWebserverOffline [message]`
