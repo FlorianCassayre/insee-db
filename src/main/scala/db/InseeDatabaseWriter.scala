@@ -98,7 +98,7 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
       inseeOfficialFilesDirectory.listFiles().sortBy(_.getName).view
         .flatMap(InseePersonsReader.readOfficialYearlyFile)
         .filter(InseePersonsReader.isReasonable)
-    //.take(1_000)
+    //.take(1_000_000)
 
     def getPlace(code: String): Int = inseeCodePlaceMap.getOrElse(countryTranslation.getOrElse(code, code), 0)
 
@@ -112,7 +112,7 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
     getIterator().foreach { p =>
       val id = count
 
-      if(id % 400000 == 0) {
+      if(id % 1000000 == 0) {
         println(id)
         System.gc()
       }
@@ -203,30 +203,24 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
 
     logOK()
 
-    personsDataMap = null
-
     System.gc() // TODO
-
-    val total = count
 
     logEllipse("Building search data")
 
     var searchValues: mutable.Map[Int, PersonProcessed] = mutable.Map.empty
 
-    count = 0
-    getIterator().foreach { p =>
-      val id = count
-
-      if(id % 400000 == 0) {
+    personsDataMap.foreach { case (id, p) =>
+      if(id % 1000000 == 0) {
         println(id)
         System.gc()
       }
 
-      val (birthPlace, deathPlace) = (getPlace(p.birthCode), getPlace(p.deathCode))
+      val (birthPlace, deathPlace) = (p.birthPlaceId, p.deathPlaceId)
       val processed = PersonProcessed(cleanSplitAndNormalize(p.nom).map(nomsMap).toArray, cleanSplitAndNormalize(p.prenom).map(prenomsMap).toArray, p.gender, p.birthDate, placeAbsolute(birthPlace), p.deathDate, placeAbsolute(deathPlace))
       searchValues.put(id, processed)
-      count += 1
     }
+
+    personsDataMap = null
 
     logOK()
 

@@ -55,7 +55,9 @@ cd ..
 mkdir deaths
 cd deaths
 
-# Monthly (january-september 2020)
+# Monthly (january-november 2020)
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M11.zip 14e6ba17ba820de5c493e9081c805bad && mv Deces_2020_M11.csv deces-2020-m11.csv
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M10.zip ef1d9d16a41fca09b4b3d83b0dc320bb && mv Deces_2020_M10.csv deces-2020-m10.csv
 get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M09.zip af94c45abe1f8fe0f893aa5d386eb5ab && mv Deces_2020_M09.csv deces-2020-m09.csv
 get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M08.zip 2c3e2cd9058ca812fca3e161bccd370d && mv Deces_2020_M08.csv deces-2020-m08.csv
 get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M07.zip 2e527ff6af1f18bdf4bceef510dc49e0 && mv Deces_2020_M07.csv deces-2020-m07.csv

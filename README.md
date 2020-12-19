@@ -112,10 +112,6 @@ Vous devrez **créér** deux dossiers temporaires (initialement vides) qui se re
 
 Le chemin peut être relatif, dans ce cas la base correspond au dossier racine du projet.
 
-Si vous souhaitez mettre à jour la base de fichiers sources (en particulier, les nouveaux décès), modifiez le fichier `src/main/scala/MainFetchSources.scala`.
-
-Ensuite, vous pouvez procéder à la génération des données.
-
 1. Commencez par télécharger les fichiers source de l'INSEE :
 
    `bash ./script/fetch_files.sh <dossier_source>`
