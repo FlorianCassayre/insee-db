@@ -80,7 +80,7 @@ object MainWebserver extends App with AbstractWebserver {
               val eventOpt = convertEvent(event)
               val orderOpt = convertOrdering(order)
               (validatePositiveBounded("offset", offset, Int.MaxValue - limitMax) & validatePositiveBounded("limit", limit, limitMax) & validateNonEmpty("surname", surname) & validateConvert("event", event, eventOpt) & validateConvert("order", order, orderOpt)) {
-                val (yearMin, yearMax) = (1850, 2020) // TODO refactor this
+                val (yearMin, yearMax) = (1850, 2021) // TODO refactor this
                 def clamp(year: Int): Int = Math.min(Math.max(year, yearMin), yearMax)
                 val (realAfter, realBefore) = (after.map(clamp), before.map(clamp))
 

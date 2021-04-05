@@ -91,7 +91,7 @@ Dès lors il est possible d'allouer les deux tâches à deux machines distinctes
 Les caractéristiques minimales suivantes sont nécessaires pour chaque tâche :
 
 - Génération :
-  - **50Go** d'espace disque (le type de disque a peu d'importance) : fichiers de sortie et espace de stockage temporaire
+  - **60Go** d'espace disque (le type de disque a peu d'importance) : fichiers de sortie (20Go) et espace de stockage temporaire (30Go)
   - **32Go** de mémoire vive (ou équivalent en swap) : mémoire de travail
 - Serveur web :
   - **25Go** d'espace disque (SSD recommandé) : base de données
