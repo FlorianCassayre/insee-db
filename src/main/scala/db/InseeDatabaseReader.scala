@@ -109,7 +109,7 @@ class InseeDatabaseReader(root: File) extends AbstractInseeDatabase(root) {
 
   private def namesToIds(surname: Option[String] = None, name: Option[String] = None): Option[(Seq[Int], Seq[Int])] = {
     def processName(name: Option[String], translation: String => Option[Int]): Option[Seq[Int]] = {
-      val result = name.map(cleanSplitAndNormalize).getOrElse(Seq.empty).map(translation)
+      val result = name.map(cleanSplitAndNormalize(_)).getOrElse(Seq.empty).map(translation)
       if(result.exists(_.isEmpty))
         None
       else
@@ -155,7 +155,7 @@ class InseeDatabaseReader(root: File) extends AbstractInseeDatabase(root) {
   }
 
   def queryPlacesByPrefix(limit: Int, prefix: String): Seq[PlaceDisplay] = {
-    val normalized = normalizeSentence(prefix)
+    val normalized = normalizeSentence(prefix, preserveDigits = true) // Important: we must include digits in the tokenization of places
     placesIndex.query(placesIndexFileIn, 0, limit, normalized).entries.map(id => PlaceDisplay(id, idToPlaceDisplay(id).get))
   }
 

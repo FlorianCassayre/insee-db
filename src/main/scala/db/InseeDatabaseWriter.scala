@@ -98,7 +98,7 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
       inseeOfficialFilesDirectory.listFiles().sortBy(_.getName).view
         .flatMap(InseePersonsReader.readOfficialYearlyFile)
         .filter(InseePersonsReader.isReasonable)
-    //.take(1_000_000)
+    .take(100_000)
 
     def getPlace(code: String): Int = inseeCodePlaceMap.getOrElse(countryTranslation.getOrElse(code, code), 0)
 
@@ -155,7 +155,7 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
 
     logEllipse("Writing places index")
 
-    write(placesIndex, idPlaceMap.keys.map(id => id -> (normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap))), placeOccurrences(id))).toMap, placesIndexFile)
+    write(placesIndex, idPlaceMap.keys.map(id => id -> (normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap)), preserveDigits = true), placeOccurrences(id))).toMap, placesIndexFile)
 
     logOK()
 
