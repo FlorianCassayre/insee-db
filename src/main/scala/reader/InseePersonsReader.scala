@@ -79,8 +79,8 @@ object InseePersonsReader {
   def isReasonable(person: PersonRaw): Boolean = {
     val AgeMax = 125
     val YearBirthMin = 1850
-    val YearBirthMax = 2020
-    val YearDeathMax = 2020
+    val YearBirthMax = 2021
+    val YearDeathMax = 2021
 
     def isReasonableName(string: String): Boolean = string.forall(!_.isDigit)
     val isReasonableRange = (person.birthDate, person.deathDate) match {
