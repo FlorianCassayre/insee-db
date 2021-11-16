@@ -61,7 +61,7 @@ object MainWebserver extends App with AbstractWebserver {
     get { // All methods are GET
       concat( // All methods are located at the root
         path("places") {
-          parameters("prefix".as[String], "limit".as[Int] ? 10) { (prefix, limit) =>
+          parameters("prefix".as[String], "limit".as[Int] ? 10, "batch".as[Boolean] ? false) { (prefix, limit, _) =>
             validatePositiveBounded("limit", limit, 25) {
               validateNonEmpty("prefix", prefix) {
                 val result = db.queryPlacesByPrefix(limit, prefix)
@@ -74,8 +74,8 @@ object MainWebserver extends App with AbstractWebserver {
         },
         path("persons") {
           parameters("surname".as[String], "name".as[String] ? "", "place".as[Int] ? 0, "offset".as[Int] ? 0, "limit".as[Int] ? 10,
-            "event".as[String] ? keyEventBirth, "after".as[Int].?, "before".as[Int].?, "order".as[String] ? keyOrderAscending) {
-            (surname, name, place, offset, limit, event, after, before, order) =>
+            "event".as[String] ? keyEventBirth, "after".as[Int].?, "before".as[Int].?, "order".as[String] ? keyOrderAscending, "batch".as[Boolean] ? false) {
+            (surname, name, place, offset, limit, event, after, before, order, _) =>
               val limitMax = 100
               val eventOpt = convertEvent(event)
               val orderOpt = convertOrdering(order)
