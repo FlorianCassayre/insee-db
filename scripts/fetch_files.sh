@@ -20,7 +20,7 @@ function get() {
     # $1: the file url
     # $2: the expected hash
     echo "Downloading $1"
-    wget "$1" --quiet --show-progress
+    wget "$1" --quiet || return $?
     FILE=$(ls *.zip)
     SUM=$(md5sum "$FILE" | awk '{ print $1 }')
     if [ "$SUM" != "$2" ]; then
@@ -32,23 +32,26 @@ function get() {
       fi
     fi
     echo "Unzipping:"
-    zipinfo -1 "$FILE"
-    unzip -qq "$FILE"
-    rm "$FILE"
+    zipinfo -1 "$FILE" || return $?
+    unzip -qq "$FILE" || return $?
+    rm "$FILE" || return $?
 }
 
 # Names
-get https://www.insee.fr/fr/statistiques/fichier/2540004/nat2019_csv.zip dee96e38282a9f30ea1a862a1eafc9d8 && mv nat2019.csv prenoms.csv
+get https://www.insee.fr/fr/statistiques/fichier/2540004/nat2020_csv.zip 9af0eb19bc09e99a5197ea569e915b37 && mv nat2020.csv prenoms.csv
+
+# Opposition (blacklist)
+wget --quiet https://static.data.gouv.fr/resources/fichier-des-personnes-decedees/20211113-141955/fichier-opposition-deces.csv && mv fichier-opposition-deces.csv opposition.csv
 
 mkdir places
 cd places
 
 # Places
-get https://www.insee.fr/fr/statistiques/fichier/3720946/communes-01012019-csv.zip d700d426168bd2c8d25bb3557dfc56d4 && mv communes-01012019.csv communes.csv
-get https://www.insee.fr/fr/statistiques/fichier/3720946/departement2019-csv.zip 6ddad71eba372341e7c2018aa78d12ef && mv departement2019.csv departements.csv
-get https://www.insee.fr/fr/statistiques/fichier/3720946/region2019-csv.zip 4d26e82270ed47cc2982f4cf790f828d && mv region2019.csv regions.csv
-get https://www.insee.fr/fr/statistiques/fichier/3720946/pays2019-csv.zip 0a33a4917eff8521f6d629960f985f82 && mv pays2019.csv pays.csv
-get https://www.insee.fr/fr/statistiques/fichier/3720946/mvtcommune-01012019-csv.zip 398847495b747496114da817a971959b && mv mvtcommune-01012019.csv mouvements.csv
+get https://www.insee.fr/fr/statistiques/fichier/5057840/commune2021-csv.zip 9f365b57b6cdcba50f8982ebb3a75056 && mv commune2021.csv communes.csv
+get https://www.insee.fr/fr/statistiques/fichier/5057840/departement2021-csv.zip 11fa146155552d879c90831f9ff3bdb2 && mv departement2021.csv departements.csv
+get https://www.insee.fr/fr/statistiques/fichier/5057840/region2021-csv.zip 2fa88545050ce208d1449218a1b5b13a && mv region2021.csv regions.csv
+get https://www.insee.fr/fr/statistiques/fichier/5057840/pays2021-csv.zip c8de3b786426cd475b04d64bfce75b0b && mv pays2021.csv pays.csv
+get https://www.insee.fr/fr/statistiques/fichier/5057840/mvtcommune2021-csv.zip ab9b5ce9382284d951d8a7e8956b791c && mv mvtcommune2021.csv mouvements.csv
 
 cd ..
 
@@ -56,19 +59,19 @@ mkdir deaths
 cd deaths
 
 # Monthly (january-november 2020)
-get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M11.zip 14e6ba17ba820de5c493e9081c805bad && mv Deces_2020_M11.csv deces-2020-m11.csv
-get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M10.zip ef1d9d16a41fca09b4b3d83b0dc320bb && mv Deces_2020_M10.csv deces-2020-m10.csv
-get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M09.zip af94c45abe1f8fe0f893aa5d386eb5ab && mv Deces_2020_M09.csv deces-2020-m09.csv
-get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M08.zip 2c3e2cd9058ca812fca3e161bccd370d && mv Deces_2020_M08.csv deces-2020-m08.csv
-get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M07.zip 2e527ff6af1f18bdf4bceef510dc49e0 && mv Deces_2020_M07.csv deces-2020-m07.csv
-get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M06.zip d66cd4c0f6e502031f7dfb762f815a37 && mv Deces_2020_M06.csv deces-2020-m06.csv
-get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M05.zip 05337c89e4655db51350b282507173d7 && mv Deces_2020_M05.csv deces-2020-m05.csv
-get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M04.zip 72edc837fbcefb51d2923d95512dca18 && mv Deces_2020_M04.csv deces-2020-m04.csv
-get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M03.zip b25f800adf0540b4f8d23a9a1b5f5a2d && mv Deces_2020_M03.csv deces-2020-m03.csv
-get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M02.zip dcea1b9c19e55d58fcb4ad005090d97d && mv Deces_2020_M02.csv deces-2020-m02.csv
-get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020_M01.zip 55356ab7144c0ab8824d9ae331d7b009
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2021_M10.zip a6094fff28170239690bece08bdf1d75 && mv Deces_2021_M10.csv deces-2021-m10.csv
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2021_M09.zip 4e550fa66921de8dc8b5053c10717c61 && mv Deces_2021_M09.csv deces-2021-m09.csv
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2021_M08.zip 6893ea9a39199d3a0588a1ca4089ebad && mv Deces_2021_M08.csv deces-2021-m08.csv
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2021_M07.zip 5ea24632cb52b71e2a6472b4bbeda5ab && mv Deces_2021_M07.csv deces-2021-m07.csv
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2021_M06.zip 3728a9771e1468a46add46a9dbad44a6 && mv Deces_2021_M06.csv deces-2021-m06.csv
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2021_M05.zip 42421de5bc6311cbf046ac11aec9b84e && mv Deces_2021_M05.csv deces-2021-m05.csv
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2021_M04.zip 27196917f89c639a54f6ee65b6596960 && mv Deces_2021_M04.csv deces-2021-m04.csv
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2021_M03.zip 1c120ea549aaefdc611afbcd6fdd8a55 && mv Deces_2021_M03.csv deces-2021-m03.csv
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2021_M02.zip 78a66b317dfa4b052575ce365e853e54 && mv Deces_2021_M02.csv deces-2021-m02.csv
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2021_M01.zip 7fdaf3b6e83fda360ef971fd5d7d87b3 && mv Deces_2021_M01.csv deces-2021-m01.csv
 
-# Yearly (2019)
+# Yearly (2019-2020)
+get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2020.zip 73ef602ebc531dc1f44673f5c8cd3f58
 get https://www.insee.fr/fr/statistiques/fichier/4190491/Deces_2019.zip 3509ff62cb456d7bc0eab80e50611ea9
 
 # Decennial (1970-2018)

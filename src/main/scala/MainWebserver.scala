@@ -27,7 +27,7 @@ object MainWebserver extends App with AbstractWebserver {
   implicit val placeFormat: RootJsonFormat[PlaceDisplay] = jsonFormat2(PlaceDisplay)
   implicit val placesResponseFormat: RootJsonFormat[PlacesResponse] = jsonFormat2(PlacesResponse)
 
-  implicit val personsFormat: RootJsonFormat[PersonDisplay] = jsonFormat7(PersonDisplay)
+  implicit val personsFormat: RootJsonFormat[PersonDisplay] = jsonFormat8(PersonDisplay)
   implicit val personsResponseFormat: RootJsonFormat[PersonsResponse] = jsonFormat3(PersonsResponse)
 
   implicit val namedCountFormat: RootJsonFormat[NamedCount] = jsonFormat2(NamedCount)

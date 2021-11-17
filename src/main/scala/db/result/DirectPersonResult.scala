@@ -33,8 +33,9 @@ class DirectPersonResult extends DirectMappingResult[PersonData] {
     val birthPlace = ctx.readInt(ByteSize + DateSize)
     val deathDate = readDateOption(ctx, ByteSize + DateSize + IntSize)
     val deathPlace = ctx.readInt(ByteSize + DateSize + IntSize + DateSize)
+    val actCode = ctx.reindex(ByteSize + DateSize + IntSize + DateSize + IntSize).readString(0)._1
 
-    PersonData(noms, prenoms, gender, birthDate, birthPlace, deathDate, deathPlace)
+    PersonData(noms, prenoms, gender, birthDate, birthPlace, deathDate, deathPlace, actCode)
   }
 
   private val dtf = DateTimeFormatter.ofPattern("MM/dd/yyyy");
@@ -51,6 +52,7 @@ class DirectPersonResult extends DirectMappingResult[PersonData] {
     context.writeInt(entry.birthPlaceId)
     writeDateOption(entry.deathDate)
     context.writeInt(entry.deathPlaceId)
+    context.writeString(entry.actCode)
   }
 
 }
