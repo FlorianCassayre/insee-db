@@ -1,10 +1,12 @@
 package reader
 
 import java.io.File
-
 import data._
 import db.util.StringUtils
 import reader.ReaderUtils._
+
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 /**
  * https://www.insee.fr/fr/information/3720946
@@ -38,17 +40,39 @@ object InseePlacesReader {
     }.toVector
 
   def readCommunesEvents(file: File): Map[String, Seq[(String, String)]] = {
-    val map = csvReader(file).flatMap { r =>
-      val parent = r.get(9)
-      if(parent.length >= 5)
-        Seq(r.get(3) -> (r.get(7), parent))
+    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    // Map[oldCode, Seq[(newName, newCode)]]
+    val oldCodeToOldNameNewCodeDate: Map[String, Seq[(String, String, LocalDate)]] = csvReader(file).flatMap { r =>
+      val (date, oldCode, oldName, newCode) = (LocalDate.parse(r.get(1), formatter), r.get(3), r.get(7), r.get(9))
+      if(newCode.length >= 5 && oldCode != newCode)
+        Seq(oldCode -> (oldName, newCode, date))
       else
         Seq.empty
-    }.groupBy(_._1).view.mapValues(_.head._2).filter(t => t._1 != t._2._2).toMap
-    def upest(id: String): String = {
-      if(map.contains(id)) map(id)._2 else id
+    }.toSeq.groupBy { case (oldCode, _) => oldCode }
+      .view.mapValues(_.map { case (_, values) => values }.sortBy { case (_, _, date) => date }.reverse).toMap
+    def uppest(id: String, visited: Set[String] = Set.empty): String = {
+      if(visited.contains(id)) { // Cycle?
+        val latestChange = visited.toSeq.maxBy { id =>
+          val (_, _, date) = oldCodeToOldNameNewCodeDate(id).head
+          date
+        }
+        val (_, latestId, _) = oldCodeToOldNameNewCodeDate(latestChange).head
+        latestId
+      } else {
+        if(oldCodeToOldNameNewCodeDate.contains(id)) {
+          val (_, nextId, _) = oldCodeToOldNameNewCodeDate(id).head
+          uppest(nextId, visited + id)
+        } else {
+          id
+        }
+      }
     }
-    map.keySet.map(v => upest(v) -> (v, map(v)._1)).groupBy(_._1).view.mapValues(_.map(_._2).toSeq).toMap
+    val allCodes = oldCodeToOldNameNewCodeDate.keySet
+    allCodes.map { oldId =>
+      val parentId = uppest(oldId) // Representative
+      val (oldName, _, _) = oldCodeToOldNameNewCodeDate(oldId).head
+      parentId -> (oldId, oldName)
+    }.groupBy { case (parentId, _) => parentId }.view.mapValues(_.map { case (_, values) => values }.toSeq).toMap
   }
 
 
