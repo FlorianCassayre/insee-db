@@ -1,11 +1,11 @@
 package db
 
 import java.io.File
-import data.{PersonBlackListed, PersonData, PersonProcessed, PersonRaw, PlaceData, PlaceTree}
+import data.{PersonBlackListed, PersonData, PersonProcessed, PersonRaw, PlaceData, PlaceTree, WikiDataQueryResult}
 import db.file.FileContextOut
 import db.util.StringUtils
 import db.util.StringUtils.{cleanSplitAndNormalize, normalizeSentence, normalizeString}
-import reader.{InseeBlackListReader, InseeNamesReader, InseePersonsReader, InseePlacesReader}
+import reader.{InseeBlackListReader, InseeNamesReader, InseePersonsReader, InseePlacesReader, WikiDataQueryReader}
 
 import scala.annotation.tailrec
 import scala.collection.{Map, Seq}
@@ -27,11 +27,12 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
       file("deaths"),
       file("places"),
       file("prenoms.csv"),
-      file("opposition.csv")
+      file("opposition.csv"),
+      file("wikidata.json")
     )
   }
 
-  def generateDatabase(inseeOfficialFilesDirectory: File, inseePlaceDirectory: File, inseeNamesFiles: File, inseeBlackListFile: File): Unit = {
+  def generateDatabase(inseeOfficialFilesDirectory: File, inseePlaceDirectory: File, inseeNamesFiles: File, inseeBlackListFile: File, wikiDataFile: File): Unit = {
     import scala.collection._
 
     val t0 = System.currentTimeMillis()
@@ -98,6 +99,14 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
 
     logOK()
 
+    logEllipse("Reading Wikidata")
+
+    var wikiDataByBirthAndDeath = WikiDataQueryReader.readWikiDataQueryResult(wikiDataFile)
+      .filter(e => e.personArticleFr.nonEmpty || e.personArticleEn.nonEmpty)
+      .map(e => (e.personBirthDate, e.personDeathDate) -> e).groupBy(_._1).view.mapValues(_.map(_._2))
+
+    logOK()
+
     logEllipse("Iterating through dataset")
 
     def getIterator(): Iterable[PersonRaw] =
@@ -116,6 +125,7 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
     var count = 0
     var duplicatesRemoved = 0
     val blackListRemoved = mutable.Set.empty[PersonBlackListed]
+    val wikiDataMatched = mutable.Set.empty[WikiDataQueryResult]
     getIterator().foreach { p =>
       val id = count
 
@@ -133,11 +143,28 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
         else
           StringUtils.capitalizeFirstPerWord(prenomNormal)
 
+      val wikipediaLinks = (for {
+        birth <- p.birthDate.view
+        death <- p.deathDate.view
+        datesKey = (birth, death)
+        wikiDataEntries <- wikiDataByBirthAndDeath.get(datesKey).view
+        wikiDataEntry <- wikiDataEntries.view
+        entryNamesNormalized = (wikiDataEntry.personNameBirth.toSeq ++ wikiDataEntry.personName ++ wikiDataEntry.personNameBirth)
+          .flatMap(StringUtils.cleanSplitAndNormalize(_)).toSet
+        personSurnameNormalized = StringUtils.cleanSplitAndNormalize(p.nom)
+        personGivenNameNormalized = StringUtils.cleanSplitAndNormalize(p.prenom)
+        if personSurnameNormalized.exists(entryNamesNormalized.contains) && personGivenNameNormalized.exists(entryNamesNormalized.contains)
+        _ = {
+          assert(!wikiDataMatched.contains(wikiDataEntry))
+          wikiDataMatched += wikiDataEntry
+        }
+      } yield Seq("fr" -> wikiDataEntry.personArticleFr, "en" -> wikiDataEntry.personArticleEn).flatMap { case (k, opt) => opt.map(k -> _) }.toMap)
+        .headOption
 
       nomsSet.addAll(cleanSplitAndNormalize(p.nom))
       prenomsSet.addAll(cleanSplitAndNormalize(p.prenom))
       val (birthPlace, deathPlace) = (getPlace(p.birthCode), getPlace(p.deathCode))
-      val personData = PersonData(p.nom, prenomPretty, p.gender, p.birthDate, birthPlace, p.deathDate, deathPlace, p.actCode)
+      val personData = PersonData(p.nom, prenomPretty, p.gender, p.birthDate, birthPlace, p.deathDate, deathPlace, p.actCode, wikipediaLinks)
       val blackListKeyOption = p.deathDate.map(PersonBlackListed(_, p.deathCode, p.actCode))
       if(blackListKeyOption.exists(blackListSet.contains)) {
         val blackListKey = blackListKeyOption.get
@@ -161,8 +188,9 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
     System.gc()
 
     logOK()
-    println(s"Loaded $count individuals, removed $duplicatesRemoved duplicates, removed ${blackListRemoved.size}/${blackListSet.size} blacklisted entries")
+    println(s"Loaded $count individuals, removed $duplicatesRemoved duplicates, removed ${blackListRemoved.size}/${blackListSet.size} blacklisted entries, matched ${wikiDataMatched.size}/${wikiDataByBirthAndDeath.map(_._2.size).sum} wikidata entries")
 
+    wikiDataByBirthAndDeath = null
     namesAccent = null
 
     logEllipse("Writing places index")

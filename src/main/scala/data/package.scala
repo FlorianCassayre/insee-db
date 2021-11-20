@@ -24,7 +24,9 @@ package object data {
                         birthPlaceId: Int,
                         deathDate: Option[LocalDate],
                         deathPlaceId: Int,
-                        actCode: String)
+                        actCode: String,
+                        wikipedia: Option[collection.immutable.Map[String, String]]
+                       )
 
   // Processed person data to be written to the index
   case class PersonProcessed(noms: Seq[Int],
@@ -75,7 +77,8 @@ package object data {
                            birthPlace: Option[String],
                            deathDate: Option[LocalDate],
                            deathPlace: Option[String],
-                           actCode: String)
+                           actCode: String,
+                           wikipedia: Option[collection.immutable.Map[String, String]])
 
 
   /* Places */
@@ -106,5 +109,14 @@ package object data {
   /* Other */
 
   case class PersonBlackListed(deathDate: LocalDate, deathPlaceCode: String, actCode: String)
+
+  case class WikiDataQueryResult(person: String,
+                                 personName: Option[String],
+                                 personNameBirth: Option[String],
+                                 personAltLabel: Option[String],
+                                 personBirthDate: LocalDate,
+                                 personDeathDate: LocalDate,
+                                 personArticleFr: Option[String],
+                                 personArticleEn: Option[String])
 
 }

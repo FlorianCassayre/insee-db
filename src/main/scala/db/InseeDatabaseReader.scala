@@ -74,7 +74,7 @@ class InseeDatabaseReader(root: File) extends AbstractInseeDatabase(root) {
 
   def idToPersonDisplay(id: Int): Option[PersonDisplay] = {
     idToPerson(id).map { p =>
-      PersonDisplay(p.nom, p.prenom, p.gender, p.birthDate, idToPlaceDisplay(p.birthPlaceId), p.deathDate, idToPlaceDisplay(p.deathPlaceId), p.actCode)
+      PersonDisplay(p.nom, p.prenom, p.gender, p.birthDate, idToPlaceDisplay(p.birthPlaceId), p.deathDate, idToPlaceDisplay(p.deathPlaceId), p.actCode, p.wikipedia)
     }
   }
 

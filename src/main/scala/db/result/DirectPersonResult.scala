@@ -17,6 +17,20 @@ class DirectPersonResult extends DirectMappingResult[PersonData] {
       val v = context.readLong(offset)
       if(v != 0) Some(DateUtils.fromMillis(v)) else None
     }
+    def readStringMapOption(context: FileContextIn): (Option[Map[String, String]], FileContextIn) = {
+      val n = context.readByte(0)
+      val reindexed = context.reindex(ByteSize)
+      if(n > 0) {
+        val (newContext, seq) = (0 until n).foldLeft((reindexed, Seq.empty[(String, String)])) { case ((context1, acc), _) =>
+          val (str1, context2) = context1.readString(0)
+          val (str2, context3) = context2.readString(0)
+          (context3, (str1, str2) +: acc)
+        }
+        (Some(seq.toMap), newContext)
+      } else {
+        (None, reindexed)
+      }
+    }
     var ctx = context
     val noms = {
       val (seq, ctx1) = ctx.readString(0)
@@ -33,18 +47,29 @@ class DirectPersonResult extends DirectMappingResult[PersonData] {
     val birthPlace = ctx.readInt(ByteSize + DateSize)
     val deathDate = readDateOption(ctx, ByteSize + DateSize + IntSize)
     val deathPlace = ctx.readInt(ByteSize + DateSize + IntSize + DateSize)
-    val actCode = ctx.reindex(ByteSize + DateSize + IntSize + DateSize + IntSize).readString(0)._1
+    val actCode = {
+      val (seq, ctx1) = ctx.reindex(ByteSize + DateSize + IntSize + DateSize + IntSize).readString(0)
+      ctx = ctx1
+      seq
+    }
+    val (wikipedia, _) = readStringMapOption(ctx)
 
-    PersonData(noms, prenoms, gender, birthDate, birthPlace, deathDate, deathPlace, actCode)
+    PersonData(noms, prenoms, gender, birthDate, birthPlace, deathDate, deathPlace, actCode, wikipedia)
   }
-
-  private val dtf = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
   override def writeResultEntry(context: FileContextOut, entry: PersonData): Unit = {
     def writeDateOption(dateOpt: Option[LocalDate]): Unit = {
       context.writeLong(dateOpt.map(DateUtils.toMillis).getOrElse(0))
     }
-    def writeIntOption(context: FileContextOut, offset: Int, option: Option[Int]): Unit = context.writeInt(option.getOrElse(-1))
+    def writeStringMapOption(stringMapOpt: Option[Map[String, String]]): Unit = {
+      context.writeByte(stringMapOpt.map(_.size).getOrElse(0))
+      stringMapOpt.foreach { map =>
+        map.toSeq.sorted.foreach { case (key, value) =>
+          context.writeString(key)
+          context.writeString(value)
+        }
+      }
+    }
     context.writeString(entry.nom)
     context.writeString(entry.prenom)
     context.writeByte(if(entry.gender) 1 else 2)
@@ -53,6 +78,7 @@ class DirectPersonResult extends DirectMappingResult[PersonData] {
     writeDateOption(entry.deathDate)
     context.writeInt(entry.deathPlaceId)
     context.writeString(entry.actCode)
+    writeStringMapOption(entry.wikipedia)
   }
 
 }
