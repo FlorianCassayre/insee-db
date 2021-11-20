@@ -39,7 +39,7 @@ class ParallelInseeDatabase(root: File) {
     require(limit >= 0 && offset >= 0)
 
     def processName(name: Option[String], translation: (InseeDatabaseReader, String) => Option[Int]): Future[Option[Seq[Int]]] = Future {
-      val result = name.map(StringUtils.cleanSplitAndNormalize).getOrElse(Seq.empty).map(s => translation(getInstance(), s))
+      val result = name.map(StringUtils.cleanSplitAndNormalize(_)).getOrElse(Seq.empty).map(s => translation(getInstance(), s))
       if(result.exists(_.isEmpty))
         None
       else

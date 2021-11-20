@@ -1,12 +1,11 @@
 package db
 
 import java.io.File
-
-import data.{PersonData, PersonProcessed, PersonRaw, PlaceData, PlaceTree}
+import data.{PersonBlackListed, PersonData, PersonProcessed, PersonRaw, PlaceData, PlaceTree}
 import db.file.FileContextOut
 import db.util.StringUtils
 import db.util.StringUtils.{cleanSplitAndNormalize, normalizeSentence, normalizeString}
-import reader.{InseeNamesReader, InseePersonsReader, InseePlacesReader}
+import reader.{InseeBlackListReader, InseeNamesReader, InseePersonsReader, InseePlacesReader}
 
 import scala.annotation.tailrec
 import scala.collection.{Map, Seq}
@@ -27,11 +26,12 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
     generateDatabase(
       file("deaths"),
       file("places"),
-      file("prenoms.csv")
+      file("prenoms.csv"),
+      file("opposition.csv")
     )
   }
 
-  def generateDatabase(inseeOfficialFilesDirectory: File, inseePlaceDirectory: File, inseeNamesFiles: File): Unit = {
+  def generateDatabase(inseeOfficialFilesDirectory: File, inseePlaceDirectory: File, inseeNamesFiles: File, inseeBlackListFile: File): Unit = {
     import scala.collection._
 
     val t0 = System.currentTimeMillis()
@@ -92,13 +92,19 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
 
     logOK()
 
+    logEllipse("Reading blacklist")
+
+    val blackListSet = InseeBlackListReader.readBlackList(inseeBlackListFile)
+
+    logOK()
+
     logEllipse("Iterating through dataset")
 
     def getIterator(): Iterable[PersonRaw] =
       inseeOfficialFilesDirectory.listFiles().sortBy(_.getName).view
         .flatMap(InseePersonsReader.readOfficialYearlyFile)
         .filter(InseePersonsReader.isReasonable)
-    //.take(1_000_000)
+    //.take(100_000)
 
     def getPlace(code: String): Int = inseeCodePlaceMap.getOrElse(countryTranslation.getOrElse(code, code), 0)
 
@@ -109,6 +115,7 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
     var placeOccurrences = mutable.Seq.fill(idPlaceMap.size)(0)
     var count = 0
     var duplicatesRemoved = 0
+    val blackListRemoved = mutable.Set.empty[PersonBlackListed]
     getIterator().foreach { p =>
       val id = count
 
@@ -130,8 +137,15 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
       nomsSet.addAll(cleanSplitAndNormalize(p.nom))
       prenomsSet.addAll(cleanSplitAndNormalize(p.prenom))
       val (birthPlace, deathPlace) = (getPlace(p.birthCode), getPlace(p.deathCode))
-      val personData = PersonData(p.nom, prenomPretty, p.gender, p.birthDate, birthPlace, p.deathDate, deathPlace)
-      if(!personsSet.contains(personData)) {
+      val personData = PersonData(p.nom, prenomPretty, p.gender, p.birthDate, birthPlace, p.deathDate, deathPlace, p.actCode)
+      val blackListKeyOption = p.deathDate.map(PersonBlackListed(_, p.deathCode, p.actCode))
+      if(blackListKeyOption.exists(blackListSet.contains)) {
+        val blackListKey = blackListKeyOption.get
+        assert(!blackListRemoved.contains(blackListKey))
+        blackListRemoved += blackListKey
+      } else if(personsSet.contains(personData)) {
+        duplicatesRemoved += 1
+      } else {
         personsDataMap.put(id, personData)
         personsSet.add(personData)
 
@@ -140,8 +154,6 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
         }
 
         count += 1
-      } else {
-        duplicatesRemoved += 1
       }
     }
 
@@ -149,13 +161,13 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
     System.gc()
 
     logOK()
-    println(s"Loaded $count individuals, removed $duplicatesRemoved duplicates")
+    println(s"Loaded $count individuals, removed $duplicatesRemoved duplicates, removed ${blackListRemoved.size}/${blackListSet.size} blacklisted entries")
 
     namesAccent = null
 
     logEllipse("Writing places index")
 
-    write(placesIndex, idPlaceMap.keys.map(id => id -> (normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap))), placeOccurrences(id))).toMap, placesIndexFile)
+    write(placesIndex, idPlaceMap.keys.map(id => id -> (normalizeSentence(placeDisplay(placeAbsolute(id).map(idPlaceMap)), preserveDigits = true), placeOccurrences(id))).toMap, placesIndexFile)
 
     logOK()
 

@@ -13,7 +13,8 @@ package object data {
                        birthDate: Option[LocalDate],
                        birthCode: String,
                        deathDate: Option[LocalDate],
-                       deathCode: String)
+                       deathCode: String,
+                       actCode: String)
 
   // Person data as read/written from/to the database
   case class PersonData(nom: String,
@@ -22,7 +23,8 @@ package object data {
                         birthDate: Option[LocalDate],
                         birthPlaceId: Int,
                         deathDate: Option[LocalDate],
-                        deathPlaceId: Int)
+                        deathPlaceId: Int,
+                        actCode: String)
 
   // Processed person data to be written to the index
   case class PersonProcessed(noms: Seq[Int],
@@ -72,7 +74,8 @@ package object data {
                            birthDate: Option[LocalDate],
                            birthPlace: Option[String],
                            deathDate: Option[LocalDate],
-                           deathPlace: Option[String])
+                           deathPlace: Option[String],
+                           actCode: String)
 
 
   /* Places */
@@ -99,5 +102,9 @@ package object data {
 
   // Person data, in an easily displayable format
   case class PlaceDisplay(id: Int, fullname: String)
+
+  /* Other */
+
+  case class PersonBlackListed(deathDate: LocalDate, deathPlaceCode: String, actCode: String)
 
 }

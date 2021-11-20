@@ -1,7 +1,6 @@
 package db
 
 import java.io.File
-
 import data.{AbstractNamePlaceDateAttributeQuery, AbstractNamePlaceQuery, PersonProcessed, PersonQuery, PlaceData}
 import db.file.writer.{DataHandler, ShortHandler, ThreeBytesHandler}
 import db.index.{ExactStringMachIndex, ExclusiveSubsetIndex, PointerBasedIndex, PrefixIndex, StringBasedIndex}
@@ -95,6 +94,12 @@ abstract class AbstractInseeDatabase(root: File) {
 
   protected val placesIndex: PlaceLevel = new PrefixIndex[String, (String, Int), ResultSet[Int]] with StringBasedIndex {
     override def getQueryParameter(q: String): Seq[Seq[Int]] = Seq(q.getBytes.map(_.toInt).toSeq)
+    private def subsequences[A](seq: Seq[A]): Seq[Seq[A]] = seq match {
+      case head +: tail =>
+        val subs = subsequences(tail)
+        subs.map(head +: _) ++ subs
+      case _ => Seq(Seq.empty)
+    }
     override def getWriteParameter(q: (String, Int)): Seq[Seq[Int]] = getQueryParameter(q._1)
     override val child: PlaceLevel = new LimitedReferenceResult[String, (String, Int)]() {
       override val MaxResults: Int = 25

@@ -14,28 +14,6 @@ import scala.util.Try
 
 object InseePersonsReader {
 
-  def readCompiledFile(file: File): Iterable[PersonRaw] = {
-
-    val buffered = new BufferedReader(new InputStreamReader(new GZIPInputStream(new FileInputStream(file)), "UTF-8"))
-
-    val iterator = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(buffered)
-
-    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-
-    // `view` is required to preserve the iterator
-    iterator.asScala.view.map { r =>
-      PersonRaw(
-        r.get(0).toUpperCase,
-        StringUtils.capitalizeFirstPerWord(r.get(1)),
-        parseGender(r.get(2)),
-        parseDate(formatter, r.get(3)),
-        r.get(4),
-        parseDate(formatter, r.get(7)),
-        r.get(8)
-      )
-    }
-  }
-
   def readOfficialYearlyFile(file: File): Iterable[PersonRaw] = {
     val iterator = CSVFormat.DEFAULT.withFirstRecordAsHeader().withDelimiter(';').parse(new BufferedReader(new InputStreamReader(new FileInputStream(file))))
 
@@ -58,7 +36,8 @@ object InseePersonsReader {
         parseDate(formatter, r.get(2)),
         r.get(3),
         parseDate(formatter, r.get(6)),
-        r.get(7)
+        r.get(7),
+        r.get(8)
       )
     }
   }
