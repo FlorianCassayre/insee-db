@@ -20,7 +20,7 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
     context.close()
   }
 
-  def generateDatabase(inseeSourceFilesDirectory: File): Unit = {
+  def generateDatabase(inseeSourceFilesDirectory: File, dryRunOption: Option[Int]): Unit = {
     require(inseeSourceFilesDirectory.isDirectory)
     def file(subpath: String): File = new File(inseeSourceFilesDirectory.getAbsolutePath + File.separator + subpath)
     generateDatabase(
@@ -28,11 +28,12 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
       file("places"),
       file("prenoms.csv"),
       file("opposition.csv"),
-      file("wikidata.json")
+      file("wikidata.json"),
+      dryRunOption
     )
   }
 
-  def generateDatabase(inseeOfficialFilesDirectory: File, inseePlaceDirectory: File, inseeNamesFiles: File, inseeBlackListFile: File, wikiDataFile: File): Unit = {
+  def generateDatabase(inseeOfficialFilesDirectory: File, inseePlaceDirectory: File, inseeNamesFiles: File, inseeBlackListFile: File, wikiDataFile: File, dryRunOption: Option[Int]): Unit = {
     import scala.collection._
 
     val t0 = System.currentTimeMillis()
@@ -109,11 +110,16 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
 
     logEllipse("Iterating through dataset")
 
-    def getIterator(): Iterable[PersonRaw] =
-      inseeOfficialFilesDirectory.listFiles().sortBy(_.getName).view
+    def getIterator(): Iterable[PersonRaw] = {
+      val allRows = inseeOfficialFilesDirectory.listFiles().sortBy(_.getName).view
         .flatMap(InseePersonsReader.readOfficialYearlyFile)
         .filter(InseePersonsReader.isReasonable)
-    //.take(100_000)
+
+      dryRunOption match {
+        case Some(rowsToLoad) => allRows.take(rowsToLoad)
+        case None => allRows
+      }
+    }
 
     def getPlace(code: String): Int = inseeCodePlaceMap.getOrElse(countryTranslation.getOrElse(code, code), 0)
 
@@ -155,7 +161,10 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
         personGivenNameNormalized = StringUtils.cleanSplitAndNormalize(p.prenom)
         if personSurnameNormalized.exists(entryNamesNormalized.contains) && personGivenNameNormalized.exists(entryNamesNormalized.contains)
         _ = {
-          assert(!wikiDataMatched.contains(wikiDataEntry))
+          if(wikiDataMatched.contains(wikiDataEntry)) {
+            println(s"[WARN] Duplicate Wikipedia match: $wikiDataEntry")
+          }
+          //assert(!wikiDataMatched.contains(wikiDataEntry), wikiDataEntry)
           wikiDataMatched += wikiDataEntry
         }
       } yield Seq("fr" -> wikiDataEntry.personArticleFr, "en" -> wikiDataEntry.personArticleEn).flatMap { case (k, opt) => opt.map(k -> _) }.toMap)
@@ -168,7 +177,7 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
       val blackListKeyOption = p.deathDate.map(PersonBlackListed(_, p.deathCode, p.actCode))
       if(blackListKeyOption.exists(blackListSet.contains)) {
         val blackListKey = blackListKeyOption.get
-        assert(!blackListRemoved.contains(blackListKey))
+        assert(!blackListRemoved.contains(blackListKey), blackListKey)
         blackListRemoved += blackListKey
       } else if(personsSet.contains(personData)) {
         duplicatesRemoved += 1

@@ -10,7 +10,7 @@ import scala.collection.Seq
 object CliUtils {
 
   val PlaceFieldsHeader: Seq[String] = Seq("Identifiant", "Lieu")
-  val PersonFieldsHeader: Seq[String] = Seq("Nom", "Prénom", "Sexe", "Date naissance", "Lieu naissance", "Date décès", "Lieu décès", "Numéro acte")
+  val PersonFieldsHeader: Seq[String] = Seq("Nom", "Prénom", "Sexe", "Date naissance", "Lieu naissance", "Date décès", "Lieu décès", "Numéro acte", "Wikipedia")
   val StatsGeographyFieldsHeader: Seq[String] = Seq("Code lieu", "Résultats")
   val StatsTimeFieldsHeader: Seq[String] = Seq("Année", "Résultats")
 
@@ -19,7 +19,7 @@ object CliUtils {
   def personToFields(person: PersonDisplay): Seq[String] = {
     def dateToString(date: Option[LocalDate]): String = date.map(formatter.format).getOrElse("")
     def placeToString(place: Option[String]): String = place.getOrElse("")
-    Seq(person.nom, person.prenom, if(person.gender) "M" else "F", dateToString(person.birthDate), placeToString(person.birthPlace), dateToString(person.deathDate), placeToString(person.deathPlace), person.actCode)
+    Seq(person.nom, person.prenom, if(person.gender) "M" else "F", dateToString(person.birthDate), placeToString(person.birthPlace), dateToString(person.deathDate), placeToString(person.deathPlace), person.actCode, person.wikipedia.map(_.toSeq.sorted.map(_._2).mkString(", ")).getOrElse(""))
   }
 
   def asciiTable(header: Seq[String], values: Seq[Seq[String]]): String = {
