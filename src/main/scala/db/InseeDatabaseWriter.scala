@@ -104,7 +104,7 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
 
     var wikiDataByBirthAndDeath = WikiDataQueryReader.readWikiDataQueryResult(wikiDataFile)
       .filter(e => e.personArticleFr.nonEmpty || e.personArticleEn.nonEmpty)
-      .map(e => (e.personBirthDate, e.personDeathDate) -> e).groupBy(_._1).view.mapValues(_.map(_._2))
+      .map(e => (e.personBirthDate, e.personDeathDate) -> e).groupBy(_._1).view.mapValues(_.map(_._2)).toMap
 
     logOK()
 
