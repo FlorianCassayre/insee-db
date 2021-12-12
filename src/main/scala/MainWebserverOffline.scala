@@ -1,6 +1,6 @@
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.server.Directives.{complete, _}
-import akka.http.scaladsl.server.{PathMatcher0, PathMatchers}
+import akka.http.scaladsl.server.Directives.complete
+import akka.http.scaladsl.server.Route
 import spray.json.RootJsonFormat
 import web.AbstractWebserver
 
@@ -19,7 +19,7 @@ object MainWebserverOffline extends App with AbstractWebserver {
     println(s"The following message will be displayed to visitors: '${message.get}'")
   }
 
-  override protected val route = {
+  override protected val route: Route = Route.seal {
     val offlineResponse = OfflineResponse(ServiceUnavailable.intValue, message)
     cors.corsHandler(complete(offlineResponse.code, offlineResponse))
   }

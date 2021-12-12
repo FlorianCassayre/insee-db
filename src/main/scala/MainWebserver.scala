@@ -57,67 +57,69 @@ object MainWebserver extends App with AbstractWebserver {
   }
 
   override val route: Route =
-    get { // All methods are GET
-      concat( // All methods are located at the root
-        path("places") {
-          parameters("prefix".as[String], "limit".as[Int] ? 10, "batch".as[Boolean] ? false) { (prefix, limit, _) =>
-            validatePositiveBounded("limit", limit, 25) {
-              validateNonEmpty("prefix", prefix) {
-                val result = db.queryPlacesByPrefix(limit, prefix)
+    Route.seal(
+      get { // All methods are GET
+        concat( // All methods are located at the root
+          path("places") {
+            parameters("prefix".as[String], "limit".as[Int] ? 10, "batch".as[Boolean] ? false) { (prefix, limit, _) =>
+              validatePositiveBounded("limit", limit, 25) {
+                validateNonEmpty("prefix", prefix) {
+                  val result = db.queryPlacesByPrefix(limit, prefix)
 
-                val successResponse = PlacesResponse(OK.intValue, result)
-                cors.corsHandler(complete(successResponse.code, successResponse))
-              }
-            }
-          }
-        },
-        path("persons") {
-          parameters("surname".as[String], "name".as[String] ? "", "place".as[Int] ? 0, "offset".as[Int] ? 0, "limit".as[Int] ? 10,
-            "event".as[String] ? keyEventBirth, "after".as[Int].?, "before".as[Int].?, "order".as[String] ? keyOrderAscending, "batch".as[Boolean] ? false) {
-            (surname, name, place, offset, limit, event, after, before, order, _) =>
-              val limitMax = 100
-              val eventOpt = convertEvent(event)
-              val orderOpt = convertOrdering(order)
-              (validatePositiveBounded("offset", offset, Int.MaxValue - limitMax) & validatePositiveBounded("limit", limit, limitMax) & validateNonEmpty("surname", surname) & validateConvert("event", event, eventOpt) & validateConvert("order", order, orderOpt)) {
-                val (yearMin, yearMax) = (1850, 2021) // TODO refactor this
-                def clamp(year: Int): Int = Math.min(Math.max(year, yearMin), yearMax)
-                val (realAfter, realBefore) = (after.map(clamp), before.map(clamp))
-
-                val result = db.queryPersons(offset, limit, Some(surname), Some(name), Some(place), filterByBirth = eventOpt.get, realAfter, realBefore, ascending = orderOpt.get)
-
-                val successResponse = PersonsResponse(OK.intValue, result.total, result.entries)
-                cors.corsHandler(complete(successResponse.code, successResponse))
-              }
-          }
-        },
-        pathPrefix("stats") {
-          concat(
-            path("geography") {
-              parameters("surname".as[String], "name".as[String] ? "") {
-                (surname, name) =>
-                  val result = db.getInstance().queryPlaceStatisticsCode(surname = Some(surname), name = Some(name), placeCode = Some(Geography.CodeFrance), nestingDepth = Some(2))
-
-                  val successResponse = StatsGeographyResponse(OK.intValue, result.map { case (name, count) => NamedCount(name, count) })
+                  val successResponse = PlacesResponse(OK.intValue, result)
                   cors.corsHandler(complete(successResponse.code, successResponse))
-              }
-            },
-            path("time") {
-              parameters("surname".as[String], "name".as[String] ? "", "place".as[Int] ? 0, "event".as[String] ? keyEventBirth) {
-                (surname, name, place, event) =>
-                  val eventOpt = convertEvent(event)
-                  validateConvert("event", event, eventOpt) {
-                    val result = db.getInstance().queryTimesStatistics(surname = Some(surname), name = Some(name), placeId = Some(place), filterByBirth = eventOpt.get)
-
-                    val successResponse = StatsTimeResponse(OK.intValue, result.map { case (year, count) => NamedCount(year.toString, count) })
-                    cors.corsHandler(complete(successResponse.code, successResponse))
-                  }
+                }
               }
             }
-          )
+          },
+          path("persons") {
+            parameters("surname".as[String], "name".as[String] ? "", "place".as[Int] ? 0, "offset".as[Int] ? 0, "limit".as[Int] ? 10,
+              "event".as[String] ? keyEventBirth, "after".as[Int].?, "before".as[Int].?, "order".as[String] ? keyOrderAscending, "batch".as[Boolean] ? false) {
+              (surname, name, place, offset, limit, event, after, before, order, _) =>
+                val limitMax = 100
+                val eventOpt = convertEvent(event)
+                val orderOpt = convertOrdering(order)
+                (validatePositiveBounded("offset", offset, Int.MaxValue - limitMax) & validatePositiveBounded("limit", limit, limitMax) & validateNonEmpty("surname", surname) & validateConvert("event", event, eventOpt) & validateConvert("order", order, orderOpt)) {
+                  val (yearMin, yearMax) = (1850, 2021) // TODO refactor this
+                  def clamp(year: Int): Int = Math.min(Math.max(year, yearMin), yearMax)
+                  val (realAfter, realBefore) = (after.map(clamp), before.map(clamp))
 
-        }
-      )
-    }
+                  val result = db.queryPersons(offset, limit, Some(surname), Some(name), Some(place), filterByBirth = eventOpt.get, realAfter, realBefore, ascending = orderOpt.get)
+
+                  val successResponse = PersonsResponse(OK.intValue, result.total, result.entries)
+                  cors.corsHandler(complete(successResponse.code, successResponse))
+                }
+            }
+          },
+          pathPrefix("stats") {
+            concat(
+              path("geography") {
+                parameters("surname".as[String], "name".as[String] ? "") {
+                  (surname, name) =>
+                    val result = db.getInstance().queryPlaceStatisticsCode(surname = Some(surname), name = Some(name), placeCode = Some(Geography.CodeFrance), nestingDepth = Some(2))
+
+                    val successResponse = StatsGeographyResponse(OK.intValue, result.map { case (name, count) => NamedCount(name, count) })
+                    cors.corsHandler(complete(successResponse.code, successResponse))
+                }
+              },
+              path("time") {
+                parameters("surname".as[String], "name".as[String] ? "", "place".as[Int] ? 0, "event".as[String] ? keyEventBirth) {
+                  (surname, name, place, event) =>
+                    val eventOpt = convertEvent(event)
+                    validateConvert("event", event, eventOpt) {
+                      val result = db.getInstance().queryTimesStatistics(surname = Some(surname), name = Some(name), placeId = Some(place), filterByBirth = eventOpt.get)
+
+                      val successResponse = StatsTimeResponse(OK.intValue, result.map { case (year, count) => NamedCount(year.toString, count) })
+                      cors.corsHandler(complete(successResponse.code, successResponse))
+                    }
+                }
+              }
+            )
+
+          }
+        )
+      }
+    )
 
   bootstrap()
 }
