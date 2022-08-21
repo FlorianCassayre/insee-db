@@ -15,7 +15,7 @@ object InseePlacesReader {
 
   def readCommunes(file: File): (Seq[PlaceOldCommune], Seq[PlaceCommune]) = {
     val (oldCommunes, currentCommunes) = csvReader(file).map { r =>
-      val (inseeCode, name, departementId, parent) = (r.get(1), r.get(8), r.get(3), r.get(10))
+      val (inseeCode, name, departementId, parent) = (r.get(1), r.get(9), r.get(3), r.get(10))
       val isOld = departementId.isEmpty
       if(isOld) (Some(PlaceOldCommune(inseeCode, name, parent)), None)
       else (None, Some(PlaceCommune(inseeCode, name, departementId)))
