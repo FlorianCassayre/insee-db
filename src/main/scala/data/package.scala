@@ -114,8 +114,8 @@ package object data {
                                  personName: Option[String],
                                  personNameBirth: Option[String],
                                  personAltLabel: Option[String],
-                                 personBirthDate: LocalDate,
-                                 personDeathDate: LocalDate,
+                                 personBirthDate: Option[LocalDate],
+                                 personDeathDate: Option[LocalDate],
                                  personArticleFr: Option[String],
                                  personArticleEn: Option[String])
 

@@ -7,12 +7,15 @@ import spray.json.DefaultJsonProtocol._
 import java.io.File
 import java.time.LocalDate
 import scala.io.Source
+import scala.util.Try
 
 object WikiDataQueryReader {
 
-  private implicit object LocalDateJsonFormat extends JsonFormat[LocalDate] {
-    def write(currency: LocalDate): JsValue = throw new UnsupportedOperationException
-    def read(value: JsValue): LocalDate = LocalDate.parse(value.convertTo[String].split("T").head) // TODO
+  private implicit object LocalDateJsonFormat extends JsonFormat[Option[LocalDate]] {
+    def write(currency: Option[LocalDate]): JsValue = throw new UnsupportedOperationException
+    def read(value: JsValue): Option[LocalDate] = {
+      Try(LocalDate.parse(value.convertTo[String].split("T").head)).toOption
+    } // TODO
   }
 
   private implicit val wikiDataEntryFormat: JsonFormat[WikiDataQueryResult] = jsonFormat8(WikiDataQueryResult)
