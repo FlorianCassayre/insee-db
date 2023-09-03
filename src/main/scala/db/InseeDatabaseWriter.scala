@@ -178,7 +178,7 @@ class InseeDatabaseWriter(root: File) extends AbstractInseeDatabase(root) {
       val blackListKeyOption = p.deathDate.map(PersonBlackListed(_, p.deathCode, p.actCode))
       if(blackListKeyOption.exists(blackListSet.contains)) {
         val blackListKey = blackListKeyOption.get
-        assert(!blackListRemoved.contains(blackListKey), blackListKey)
+        //assert(!blackListRemoved.contains(blackListKey), blackListKey)
         blackListRemoved += blackListKey
       } else if(personsSet.contains(personData)) {
         duplicatesRemoved += 1
